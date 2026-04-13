@@ -316,6 +316,16 @@
     // --- SISTEMA DE DADOS ---
     let playerName = localStorage.getItem('pengu_player_name') || "Jogador" + Math.floor(Math.random()*1000);
 
+    // Gera um ID único persistente para o jogador (substitui Firebase Auth)
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+    let userId = localStorage.getItem('pengu_user_id');
+    if (!userId) { userId = generateUUID(); localStorage.setItem('pengu_user_id', userId); }
+
     function load() {
         const d = localStorage.getItem('pengu_deluxe_v1');
         if(d) {
@@ -351,78 +361,58 @@
     }
     function updateUI() { document.getElementById('ice-count').innerText = userData.ice; }
 
-    // --- SISTEMA ONLINE (FIREBASE MULTIPLAYER/RANKING) ---
-    let db, auth, userId;
+    // --- SISTEMA ONLINE (API REST → Neon PostgreSQL) ---
     let rankingData = [];
-    
-    async function initFirebase() {
+    const API_BASE = window.location.origin; // Aponta para o servidor Express local
+
+    async function syncToCloud() {
         try {
-            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-            const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-            const { getFirestore, doc, setDoc, collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-            if (!firebaseConfig) return;
-
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'pinguin-arena';
-
-            const initAuth = async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            };
-            await initAuth();
-
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    document.getElementById('player-name-input').value = playerName;
-                    
-                    // Escuta o Ranking Global em tempo real
-                    const rankingRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
-                    onSnapshot(rankingRef, (snapshot) => {
-                        rankingData = [];
-                        snapshot.forEach(doc => {
-                            rankingData.push({ id: doc.id, ...doc.data() });
-                        });
-                        // Ordena localmente os jogadores com mais gelo
-                        rankingData.sort((a, b) => b.ice - a.ice);
-                        if (document.getElementById('ranking-modal').style.display === 'block') {
-                            renderRanking();
-                        }
-                    }, (error) => console.error("Erro no ranking:", error));
-                    
-                    syncToCloud();
-                }
-            });
-
-            window.syncToCloud = async function() {
-                if (!userId || !db) return;
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', userId);
-                await setDoc(userRef, {
+            await fetch(`${API_BASE}/api/ranking`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
                     name: playerName,
                     ice: userData.ice,
                     skinsCount: userData.inventory.length
-                }, { merge: true });
-            }
-
-        } catch (e) { console.log("Servidor online offline no momento.", e); }
+                })
+            });
+        } catch (e) {
+            console.warn('Servidor offline, dados salvos apenas localmente.', e);
+        }
     }
-    initFirebase();
+
+    async function loadRankingFromServer() {
+        try {
+            const res = await fetch(`${API_BASE}/api/ranking`);
+            if (!res.ok) throw new Error('Resposta inválida');
+            const data = await res.json();
+            rankingData = data.map(row => ({
+                id: row.user_id,
+                name: row.name,
+                ice: row.ice,
+                skinsCount: row.skins_count
+            }));
+            renderRanking();
+        } catch (e) {
+            console.warn('Não foi possível carregar o ranking online.', e);
+            document.getElementById('ranking-list').innerHTML =
+                '<div style="text-align:center; color:#e53935; font-family:sans-serif; padding:20px;">⚠️ Servidor offline.<br>Abra o jogo via <strong>node server.js</strong>.</div>';
+        }
+    }
+
+    // Sincroniza na inicialização
+    document.getElementById('player-name-input').value = playerName;
+    syncToCloud();
 
     function updatePlayerName() {
         const input = document.getElementById('player-name-input').value.trim();
         if (input) {
             playerName = input;
             localStorage.setItem('pengu_player_name', playerName);
-            if (typeof syncToCloud === 'function') syncToCloud();
-            alert("Nome salvo com sucesso! Você já está no Ranking Global.");
-            renderRanking();
+            syncToCloud();
+            alert("Nome salvo com sucesso! Você já está no Ranking Global. 🏆");
+            loadRankingFromServer();
         }
     }
 
@@ -435,17 +425,18 @@
         }
         
         rankingData.slice(0, 50).forEach((p, index) => {
+            const isMe = p.id === userId;
             const div = document.createElement('div');
-            div.style.cssText = `display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #ccc; font-family: sans-serif; align-items: center; background: ${p.id === userId ? '#fff3e0' : 'transparent'}; font-weight: ${p.id === userId ? 'bold' : 'normal'}; border-radius: 8px; margin-bottom: 5px;`;
+            div.style.cssText = `display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #ccc; font-family: sans-serif; align-items: center; background: ${isMe ? '#fff3e0' : 'transparent'}; font-weight: ${isMe ? 'bold' : 'normal'}; border-radius: 8px; margin-bottom: 5px;`;
             
-            let medal = `#${index + 1}`;
+            let medal = `<span style="font-size:16px;">#${index + 1}</span>`;
             if (index === 0) medal = '<span style="font-size:24px;">🥇</span>';
             if (index === 1) medal = '<span style="font-size:24px;">🥈</span>';
             if (index === 2) medal = '<span style="font-size:24px;">🥉</span>';
 
             div.innerHTML = `
-                <span style="font-size: 16px; width: 45px; text-align: center;">${medal}</span>
-                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 10px; font-size: 18px;">${p.name}</span>
+                <span style="width: 45px; text-align: center;">${medal}</span>
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 10px; font-size: 18px;">${p.name}${isMe ? ' <span style="font-size:12px; background:#ff9800; color:#fff; padding:2px 6px; border-radius:8px;">VOCÊ</span>' : ''}</span>
                 <span style="color: #0077ff; font-weight: bold; font-size: 18px;">🧊 ${p.ice}</span>
             `;
             list.appendChild(div);
@@ -754,7 +745,12 @@
         document.getElementById(id).style.display = 'block';
         if(id === 'inv-modal') renderInventory();
         if(id === 'collection-modal') renderCollection();
-        if(id === 'ranking-modal') renderRanking();
+        if(id === 'ranking-modal') {
+            // Mostra loading enquanto busca do servidor
+            document.getElementById('ranking-list').innerHTML =
+                '<div style="text-align:center; color:#888; font-family:sans-serif; padding:20px;">⏳ Carregando ranking online...</div>';
+            loadRankingFromServer();
+        }
     }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
