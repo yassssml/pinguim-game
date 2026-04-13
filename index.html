@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penguin Knockout - Precision Edition</title>
+    <!-- Importando fonte divertida estilo game -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #ffcc00;
+            --accent: #ff4757;
+            --bg-ui: rgba(255, 255, 255, 0.9);
+        }
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Fredoka One', cursive; 
+            background: #a2d2ff; 
+            touch-action: none; 
+        }
+        canvas { display: block; }
+        
+        #ui-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none; color: #fff; 
+            z-index: 10; 
+        }
+        
+        /* Typography Helpers */
+        .text-outline {
+            text-shadow: 3px 3px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000, 1px 1px 0px #000;
+        }
+
+        /* Menu Principal */
+        #main-menu {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; pointer-events: auto;
+        }
+        .logo {
+            font-size: 80px;
+            margin-bottom: 20px;
+            color: #fff;
+            letter-spacing: 5px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .btn-main {
+            padding: 18px 50px; font-size: 28px; background: var(--secondary); color: #443300; border: none;
+            border-radius: 20px; cursor: pointer; box-shadow: 0 8px 0 #ccaa00;
+            transition: all 0.1s; pointer-events: auto;
+        }
+        .btn-main:hover { transform: scale(1.05); }
+        .btn-main:active { transform: translateY(4px); box-shadow: 0 4px 0 #ccaa00; }
+
+        /* HUD */
+        #top-hud { position: absolute; top: 20px; width: 100%; display: flex; justify-content: center; padding: 0 30px; box-sizing: border-box; }
+        .ice-display { 
+            background: var(--bg-ui); padding: 10px 30px; border-radius: 50px; 
+            font-size: 28px; color: #0077ff; border: 4px solid #00f2ff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* Botões de Ação */
+        #bottom-btns { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 20px; pointer-events: auto; }
+        .circle-btn {
+            width: 85px; height: 85px; border-radius: 25px; background: #fff; border: 5px solid #00f2ff;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 45px;
+            box-shadow: 0 6px 0 #00d4df; transition: 0.2s;
+        }
+        .circle-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #00d4df; }
+
+        /* Modais Estilizados */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; padding: 40px; border-radius: 35px; border: 8px solid #00f2ff;
+            width: 90%; max-width: 550px; color: #333; display: none; pointer-events: auto; z-index: 100;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+        .close-modal { position: absolute; top: 15px; right: 25px; font-size: 40px; cursor: pointer; color: #bbb; transition: 0.2s; }
+        .close-modal:hover { color: var(--accent); }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 25px; }
+        .card { 
+            border: 4px solid #f0f0f0; padding: 20px; border-radius: 25px; text-align: center; 
+            cursor: pointer; transition: 0.3s; position: relative; overflow: hidden;
+        }
+        .card:hover { border-color: #00f2ff; transform: translateY(-5px); background: #faffff; }
+        .card.selected { border-color: #4caf50; background: #f0fff0; }
+        .card.selected::after { content: '✔'; position: absolute; top: 5px; right: 10px; color: #4caf50; font-size: 20px; }
+
+        /* Animação do Ovo (Cinemática) */
+        #egg-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 500; pointer-events: auto;
+        }
+        #egg-visual { font-size: 180px; position: relative; }
+        #egg-sparkles { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; height: 300px; display: none; }
+        .tremble { animation: tremble 0.15s infinite; }
+        @keyframes tremble {
+            0% { transform: translate(4px, 2px) rotate(0deg); }
+            50% { transform: translate(-4px, -2px) rotate(-2deg); }
+            100% { transform: translate(4px, 2px) rotate(2deg); }
+        }
+        #reveal-name { font-size: 50px; color: var(--secondary); margin-top: 30px; opacity: 0; text-align: center; }
+
+        /* Controles de Força */
+        #speed-selector {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            display: none; gap: 15px; background: rgba(0,0,0,0.4);
+            padding: 20px; border-radius: 30px; pointer-events: auto; backdrop-filter: blur(5px);
+        }
+        .speed-btn { 
+            width: 100px; height: 60px; border-radius: 15px; border: none; cursor: pointer; 
+            color: white; font-weight: bold; font-family: inherit; font-size: 18px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .speed-btn small { font-size: 10px; opacity: 0.8; }
+        .speed-btn:active { transform: translateY(2px); box-shadow: none; }
+
+        #timer-box { 
+            position: absolute; top: 120px; left: 50%; transform: translateX(-50%); 
+            font-size: 80px; display:none; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+        }
+
+        #cam-hint {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 10px;
+            font-size: 12px; opacity: 0.7; display: none;
+        }
+
+        /* Animações de Vitória */
+        .victory-title { animation: bounce-win 1s infinite alternate; }
+        @keyframes bounce-win {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.1); }
+        }
+        .confetti { position: absolute; font-size: 24px; animation: fall 2s linear infinite; top: -30px; z-index: -1; }
+        @keyframes fall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(300px) rotate(360deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div id="top-hud">
+        <div class="ice-display">🧊 <span id="ice-count">500</span></div>
+    </div>
+
+    <div id="main-menu">
+        <h1 class="logo text-outline">PENGUIN<br>KNOCKOUT</h1>
+        <button class="btn-main" onclick="startGame()">JOGAR AGORA</button>
+    </div>
+
+    <div id="bottom-btns">
+        <div class="circle-btn" onclick="openModal('shop-modal')" title="Loja">🥚</div>
+        <div class="circle-btn" onclick="openModal('collection-modal')" title="Enciclopédia">📖</div>
+        <div class="circle-btn" onclick="openModal('inv-modal')" title="Mochila">🎒</div>
+    </div>
+
+    <!-- Modais -->
+    <div id="shop-modal" class="modal">
+        <span class="close-modal" onclick="closeModal('shop-modal')">&times;</span>
+        <h2 style="text-align:center; font-size: 32px; color: #0077ff;">LOJA DE OVOS</h2>
+        <div class="grid" style="max-height: 55vh; overflow-y: auto; padding-right: 10px;">
+            <div class="card" onclick="buyEgg('sorvete')">
+                <div style="font-size: 60px">🍦</div>
+                <strong>Ovo Sorvete</strong><br>
+                <span style="color:#0077ff">500 Gelo</span>
+            </div>
+            <div class="card" onclick="buyEgg('pastel')">
+                <div style="font-size: 60px">🥚</div>
+                <strong>Ovo Pastel</strong><br>
+                <span style="color:#0077ff">150 Gelo</span>
+            </div>
+            <div class="card" onclick="buyEgg('frutas')">
+                <div style="font-size: 60px">🍎</div>
+                <strong>Ovo Frutas</strong><br>
+                <span style="color:#0077ff">700 Gelo</span>
+            </div>
+            <div class="card" onclick="buyEgg('dino')">
+                <div style="font-size: 60px">🦖</div>
+                <strong>Ovo Dino</strong><br>
+                <span style="color:#0077ff">1850 Gelo</span>
+            </div>
+            <div class="card" onclick="buyEgg('arcanjo')">
+                <div style="font-size: 60px">👼</div>
+                <strong>Ovo Arcanjo</strong><br>
+                <span style="color:#0077ff">1000 Gelo</span>
+            </div>
+            <div class="card" onclick="buyEgg('duck')">
+                <div style="font-size: 60px">🦆</div>
+                <strong>Ovo Pato</strong><br>
+                <span style="color:#0077ff">1050 Gelo</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="inv-modal" class="modal">
+        <span class="close-modal" onclick="closeModal('inv-modal')">&times;</span>
+        <h2 style="text-align:center; font-size: 32px; color: #4caf50;">MINHA COLEÇÃO</h2>
+        <div id="inventory-grid" class="grid" style="max-height: 55vh; overflow-y: auto; padding-right: 10px;"></div>
+    </div>
+
+    <!-- Modal da Enciclopédia -->
+    <div id="collection-modal" class="modal" style="max-width: 700px; width: 95%;">
+        <span class="close-modal" onclick="closeModal('collection-modal')">&times;</span>
+        <h2 style="text-align:center; font-size: 32px; color: #9c27b0;">ENCICLOPÉDIA DE SKINS</h2>
+        <div id="collection-grid" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); max-height: 55vh; overflow-y: auto; padding-right: 10px; gap: 15px;"></div>
+    </div>
+
+    <!-- Modal de Game Over -->
+    <div id="game-over-modal" class="modal" style="text-align: center; border-color: #f44336; z-index: 1000;">
+        <h2 style="font-size: 45px; color: #f44336; margin-top: 10px; margin-bottom: 10px; text-shadow: 2px 2px 0px #000;">VOCÊ CAIU!</h2>
+        <h3 style="font-size: 28px; color: #333; margin-top: 0;">Posição: <span id="final-position" style="color: #ff9800; font-size: 36px;">--</span>º Lugar</h3>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+            <button class="btn-main" style="background: #2196f3; font-size: 18px; padding: 15px 25px; box-shadow: 0 6px 0 #0b7dda;" onclick="playAgain()">JOGAR NOVAMENTE</button>
+            <button class="btn-main" style="background: #ff9800; font-size: 18px; padding: 15px 25px; box-shadow: 0 6px 0 #cc7a00;" onclick="backToLobby()">VOLTAR PRO LOBBY</button>
+        </div>
+    </div>
+
+    <!-- Modal de Vitória -->
+    <div id="victory-modal" class="modal" style="text-align: center; border-color: #ffcc00; z-index: 1000; overflow: hidden;">
+        <div class="confetti" style="left: 10%; animation-delay: 0s;">✨</div>
+        <div class="confetti" style="left: 30%; animation-delay: 0.5s;">🧊</div>
+        <div class="confetti" style="left: 50%; animation-delay: 0.2s;">🎉</div>
+        <div class="confetti" style="left: 70%; animation-delay: 0.7s;">✨</div>
+        <div class="confetti" style="left: 90%; animation-delay: 0.4s;">🧊</div>
+        
+        <h2 class="victory-title text-outline" style="font-size: 55px; color: #ffcc00; margin-top: 10px; margin-bottom: 10px; text-shadow: 3px 3px 0 #000, 0 0 20px #ffaa00;">VITÓRIA!</h2>
+        <h3 style="font-size: 28px; color: #333; margin-top: 0;">Você ganhou <span style="color: #00f2ff; font-size: 40px; font-weight: bold; text-shadow: 1px 1px 0 #000;">+500</span> Gelo 🧊!</h3>
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+            <button class="btn-main" style="background: #4caf50; font-size: 22px; padding: 15px 40px; box-shadow: 0 6px 0 #388e3c;" onclick="claimVictory()">RESGATAR</button>
+        </div>
+    </div>
+
+    <!-- Hatching Animation -->
+    <div id="egg-overlay">
+        <div id="egg-visual">🥚</div>
+        <div id="reveal-name" class="text-outline">PINGUIM NOVO!</div>
+        <button id="claim-btn" class="btn-main" style="display:none; margin-top: 40px" onclick="finishHatch()">RESGATAR</button>
+    </div>
+
+    <!-- Game HUD -->
+    <div id="timer-box" class="text-outline">5</div>
+    <div id="cam-hint" class="text-outline">ARRASTE PARA RODAR A CÂMERA</div>
+    <div id="speed-selector">
+        <button class="speed-btn" style="background:#4caf50" onclick="setPower(0.25)"><small>[1]</small> TOQUE</button>
+        <button class="speed-btn" style="background:#2196f3" onclick="setPower(0.55)"><small>[2]</small> MÉDIO</button>
+        <button class="speed-btn" style="background:#ff9800" onclick="setPower(0.85)"><small>[3]</small> FORTE</button>
+        <button class="speed-btn" style="background:#f44336" onclick="setPower(1.3)"><small>[4]</small> TURBO!</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // --- LÓGICA E ESTADO ---
+    const ARENA_SIZE = 34;
+    const PENGUIN_COUNT = 10;
+    const FRICTION_BASE = 0.98; 
+    const STOP_THRESHOLD = 0.3;  
+    const PHYSICS_STEPS = 6;
+    const TURN_TIME = 5; 
+    
+    let scene, camera, renderer, clock;
+    let penguins = [];
+    let player;
+    let gameState = 'MENU';
+    let timer = TURN_TIME;
+
+    // Câmera Orbital
+    let camLat = 45; 
+    let camLon = 0;  
+    let camTargetLon = 0;
+    let isDragging = false;
+    let lastMouseX = 0;
+    
+    // Suporte para Raycasting
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    let userData = {
+        ice: 500,
+        inventory: [{ id: 'default', name: 'Clássico', color: 0x333333, type: 'normal' }],
+        selectedId: 'default'
+    };
+
+    // --- SISTEMA DE DADOS ---
+    function load() {
+        const d = localStorage.getItem('pengu_deluxe_v1');
+        if(d) {
+            userData = JSON.parse(d);
+            
+            // Limpa pinguins repetidos que já estavam salvos de antes
+            const unique = [];
+            const seen = new Set();
+            userData.inventory.forEach(p => {
+                if(!seen.has(p.name)) { 
+                    seen.add(p.name); 
+                    unique.push(p); 
+                }
+            });
+            userData.inventory = unique;
+        }
+        
+        // Inicializa a Enciclopédia para jogadores antigos
+        if (!userData.unlocked) {
+            userData.unlocked = [];
+            userData.inventory.forEach(p => {
+                const key = p.type + ':' + p.name;
+                if(!userData.unlocked.includes(key)) userData.unlocked.push(key);
+            });
+        }
+        
+        updateUI();
+    }
+    function save() {
+        localStorage.setItem('pengu_deluxe_v1', JSON.stringify(userData));
+        updateUI();
+    }
+    function updateUI() { document.getElementById('ice-count').innerText = userData.ice; }
+
+    // --- ENGINE GRÁFICA ---
+    function init() {
+        load();
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xade8ff);
+        scene.fog = new THREE.Fog(0xade8ff, 40, 120);
+        
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambient);
+
+        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+        sun.position.set(30, 50, 20);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+        sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+        scene.add(sun);
+
+        createArena();
+        createDecorations();
+        
+        clock = new THREE.Clock();
+
+        window.addEventListener('resize', onWindowResize);
+        
+        window.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                camTargetLon -= deltaX * 0.5;
+                lastMouseX = e.clientX;
+            }
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            if(gameState === 'PLANNING' && player && player.alive) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersectPoint = new THREE.Vector3();
+                if(raycaster.ray.intersectPlane(groundPlane, intersectPoint)) {
+                    const dir = intersectPoint.sub(player.group.position);
+                    player.targetAngle = Math.atan2(dir.x, dir.z);
+                }
+            }
+        });
+
+        window.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            lastMouseX = e.touches[0].clientX;
+        });
+        window.addEventListener('touchend', () => isDragging = false);
+        window.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                const deltaX = e.touches[0].clientX - lastMouseX;
+                camTargetLon -= deltaX * 0.5;
+                lastMouseX = e.touches[0].clientX;
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            // Código Secreto: Ctrl + Shift + R
+            if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') {
+                e.preventDefault(); // Evita recarregar a página no navegador
+                userData.ice += 10000;
+                save();
+                alert("CÓDIGO SECRETO ATIVADO! +10000 Gelo 🧊");
+                return;
+            }
+
+            if (gameState !== 'PLANNING') return;
+            if (e.key === '1') setPower(0.25);
+            if (e.key === '2') setPower(0.55);
+            if (e.key === '3') setPower(0.85);
+            if (e.key === '4') setPower(1.3);
+        });
+
+        animate();
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function createArena() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#e0f7ff';
+        ctx.fillRect(0,0,64,64);
+        ctx.fillStyle = '#c5ebf9';
+        ctx.beginPath(); ctx.arc(32,32,15,0,Math.PI*2); ctx.fill();
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(ARENA_SIZE/2, ARENA_SIZE/2);
+
+        const iceGeo = new THREE.BoxGeometry(ARENA_SIZE, 3, ARENA_SIZE);
+        const iceMat = new THREE.MeshPhongMaterial({ map: texture, shininess: 80 });
+        const ice = new THREE.Mesh(iceGeo, iceMat);
+        ice.position.y = -1.5;
+        ice.receiveShadow = true;
+        scene.add(ice);
+
+        const water = new THREE.Mesh(
+            new THREE.PlaneGeometry(2000, 2000), 
+            new THREE.MeshPhongMaterial({color: 0x00aaff, transparent: true, opacity: 0.6})
+        );
+        water.rotation.x = -Math.PI/2; water.position.y = -2.5;
+        scene.add(water);
+    }
+
+    function createDecorations() {
+        for(let i=0; i<15; i++) {
+            const h = 10 + Math.random()*20;
+            const m = new THREE.Mesh(
+                new THREE.ConeGeometry(15, h, 6),
+                new THREE.MeshPhongMaterial({color: 0xffffff})
+            );
+            const dist = 60 + Math.random()*20;
+            const ang = (Math.PI*2/15)*i;
+            m.position.set(Math.cos(ang)*dist, h/2 - 3, Math.sin(ang)*dist);
+            scene.add(m);
+        }
+    }
+
+    function createPenguinMesh(pData) {
+        const group = new THREE.Group();
+        let bodyColor = pData.color;
+        let bodyMat;
+
+        if(pData.type === 'sorvete') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#' + bodyColor.toString(16).padStart(6, '0');
+            ctx.fillRect(0,0,128,128);
+            for(let i=0; i<60; i++) {
+                ctx.fillStyle = ['#FF0000', '#00FF00', '#FFFF00', '#FF00FF', '#FFFFFF'][Math.floor(Math.random()*5)];
+                ctx.fillRect(Math.random()*128, Math.random()*128, 6, 6);
+            }
+            bodyMat = new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas) });
+        } else {
+            bodyMat = new THREE.MeshPhongMaterial({ color: bodyColor });
+        }
+
+        // 1. Corpo principal
+        const bodyGeo = new THREE.BoxGeometry(1.2, 1.3, 1.2);
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.65;
+        body.castShadow = true;
+        group.add(body);
+
+        // 2. Barriga Branca
+        const bellyGeo = new THREE.BoxGeometry(0.9, 1.1, 0.15);
+        const belly = new THREE.Mesh(bellyGeo, new THREE.MeshPhongMaterial({color: 0xffffff}));
+        belly.position.set(0, 0.65, 0.61); 
+        belly.castShadow = true;
+        group.add(belly);
+
+        // 3. Cabeça
+        const headGeo = new THREE.BoxGeometry(1.25, 1.1, 1.25);
+        const head = new THREE.Mesh(headGeo, bodyMat);
+        head.position.y = 1.85; 
+        head.castShadow = true;
+        group.add(head);
+
+        // 4. Rosto Branco
+        const faceGeo = new THREE.BoxGeometry(1.0, 0.9, 0.15);
+        const face = new THREE.Mesh(faceGeo, new THREE.MeshPhongMaterial({color: 0xffffff}));
+        face.position.set(0, 1.85, 0.63);
+        face.castShadow = true;
+        group.add(face);
+
+        // 5. Olhos (Cubinhos pretos separados)
+        const eyeGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const eyeMat = new THREE.MeshBasicMaterial({color: 0x111111});
+        const e1 = new THREE.Mesh(eyeGeo, eyeMat); e1.position.set(0.25, 1.95, 0.71); group.add(e1);
+        const e2 = new THREE.Mesh(eyeGeo, eyeMat); e2.position.set(-0.25, 1.95, 0.71); group.add(e2);
+
+        // 6. Bico 3D (Cubo saltando para fora)
+        const beakGeo = new THREE.BoxGeometry(0.4, 0.25, 0.4);
+        const beak = new THREE.Mesh(beakGeo, new THREE.MeshPhongMaterial({color: 0xffaa00}));
+        beak.position.set(0, 1.7, 0.85); 
+        beak.castShadow = true;
+        group.add(beak);
+
+        // 7. Asas/Braços (Cubos laterais)
+        const wingGeo = new THREE.BoxGeometry(0.25, 0.9, 0.7);
+        const wingL = new THREE.Mesh(wingGeo, bodyMat);
+        wingL.position.set(-0.7, 0.8, 0); wingL.rotation.z = Math.PI / 12; wingL.castShadow = true; group.add(wingL);
+        const wingR = new THREE.Mesh(wingGeo, bodyMat);
+        wingR.position.set(0.7, 0.8, 0); wingR.rotation.z = -Math.PI / 12; wingR.castShadow = true; group.add(wingR);
+
+        if(pData.type === 'duck') {
+            beak.scale.set(1.5, 0.8, 1.5); // Bico mais largo
+            beak.material.color.setHex(0xff8800); // Laranja pato
+        }
+
+        if(pData.type === 'sorvete') {
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 8), new THREE.MeshPhongMaterial({color: 0xcd853f}));
+            cone.position.y = 2.8; cone.rotation.x = Math.PI; group.add(cone);
+        }
+
+        if(pData.type === 'frutas') {
+            const leaf = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.3, 0.6, 4), new THREE.MeshPhongMaterial({color: 0x228b22}));
+            leaf.position.set(0, 2.6, 0); leaf.rotation.x = Math.PI / 4; group.add(leaf);
+        }
+        
+        if(pData.type === 'dino') {
+            let spikeColor = 0x556b2f;
+            if (pData.name === 'Tricera') spikeColor = 0x8b4513;
+            else if (pData.name === 'Stego') spikeColor = 0x2e8b57;
+            else if (pData.name === 'Raptor') spikeColor = 0x4682b4;
+            else if (pData.name === 'T-Rex') spikeColor = 0x006400;
+            else if (pData.name === 'Spino') spikeColor = 0x800000;
+            
+            const spikeMat = new THREE.MeshPhongMaterial({color: spikeColor});
+            for(let i=0; i<3; i++) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 4), spikeMat);
+                spike.position.set(0, 1.9 - i*0.5, -0.65); spike.rotation.x = -Math.PI / 3; group.add(spike);
+            }
+        }
+        
+        if(pData.type === 'arcanjo') {
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 8, 16), new THREE.MeshBasicMaterial({color: 0xffd700}));
+            halo.position.set(0, 2.9, 0); halo.rotation.x = Math.PI / 2; group.add(halo);
+            const wingMat = new THREE.MeshPhongMaterial({color: 0xffffff, transparent: true, opacity: 0.8});
+            const w1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.1), wingMat);
+            w1.position.set(0.9, 1.2, -0.6); w1.rotation.y = -Math.PI / 6; group.add(w1);
+            const w2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.1), wingMat);
+            w2.position.set(-0.9, 1.2, -0.6); w2.rotation.y = Math.PI / 6; group.add(w2);
+        }
+        
+        if(pData.type === 'duck') {
+            if (pData.name === 'Shark') {
+                const finGeo = new THREE.ConeGeometry(0.2, 0.8, 4);
+                const finMat = new THREE.MeshPhongMaterial({color: 0x555566});
+                const fin = new THREE.Mesh(finGeo, finMat);
+                fin.position.set(0, 1.9, -0.7); fin.rotation.x = -Math.PI / 4; group.add(fin);
+            } else if (pData.name === 'Soldier') {
+                const hatMat = new THREE.MeshPhongMaterial({color: 0x4b5320});
+                const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.25, 8), hatMat);
+                hat.position.set(0, 2.5, 0); group.add(hat);
+                const brim = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.6), hatMat);
+                brim.position.set(0, 2.4, 0.4); group.add(brim);
+            } else if (pData.name === 'Evil') {
+                const hornMat = new THREE.MeshPhongMaterial({color: 0xff0000});
+                const h1 = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 8), hornMat);
+                h1.position.set(0.3, 2.6, 0); h1.rotation.z = -Math.PI / 6; group.add(h1);
+                const h2 = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 8), hornMat);
+                h2.position.set(-0.3, 2.6, 0); h2.rotation.z = Math.PI / 6; group.add(h2);
+                e1.material.color.setHex(0xff0000); e2.material.color.setHex(0xff0000); // Olhos vermelhos
+            } else if (pData.name === 'Gangster') {
+                const fedoraMat = new THREE.MeshPhongMaterial({color: 0x111111});
+                const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.5, 8), fedoraMat);
+                hatTop.position.set(0, 2.65, 0); group.add(hatTop);
+                const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.05, 8), fedoraMat);
+                hatBrim.position.set(0, 2.4, 0); group.add(hatBrim);
+                const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.25, 0.1), new THREE.MeshBasicMaterial({color: 0x000000}));
+                glasses.position.set(0, 1.95, 0.8); group.add(glasses);
+            }
+        }
+
+        const footGeo = new THREE.BoxGeometry(0.6, 0.2, 0.8);
+        const footMat = new THREE.MeshPhongMaterial({color: 0xffaa00});
+        const f1 = new THREE.Mesh(footGeo, footMat); f1.position.set(0.4, 0.1, 0.3); group.add(f1);
+        const f2 = new THREE.Mesh(footGeo, footMat); f2.position.set(-0.4, 0.1, 0.3); group.add(f2);
+
+        const arrowGroup = new THREE.Group();
+        const arrowStem = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 5), new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.6}));
+        arrowStem.position.z = 2.5;
+        const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(1, 1.5, 4), new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.8}));
+        arrowHead.position.z = 5.5; arrowHead.rotation.x = Math.PI/2;
+        arrowGroup.add(arrowStem, arrowHead);
+        arrowGroup.position.y = 0.2;
+        group.add(arrowGroup);
+
+        return { group, arrow: arrowGroup };
+    }
+
+    function openModal(id) {
+        document.getElementById(id).style.display = 'block';
+        if(id === 'inv-modal') renderInventory();
+        if(id === 'collection-modal') renderCollection();
+    }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    // Dicionário com todas as skins existentes no jogo
+    const ALL_PENGUINS = [
+        {n: 'Clássico', t: 'normal'}, {n: 'Azul', t: 'normal'}, {n: 'Amarelo', t: 'normal'}, {n: 'Rosa', t: 'normal'}, {n: 'Roxo', t: 'normal'}, {n: 'Laranja', t: 'normal'},
+        {n: 'Pastel Red', t: 'pastel'}, {n: 'Pastel Orange', t: 'pastel'}, {n: 'Pastel Yellow', t: 'pastel'}, {n: 'Pastel Green', t: 'pastel'}, {n: 'Pastel Blue', t: 'pastel'}, {n: 'Pastel Purple', t: 'pastel'}, {n: 'Pastel Pink', t: 'pastel'},
+        {n: 'Baunilha', t: 'sorvete'}, {n: 'Chocolate', t: 'sorvete'}, {n: 'Morango', t: 'sorvete'}, {n: 'Pistache', t: 'sorvete'},
+        {n: 'Morango', t: 'frutas'}, {n: 'Melancia', t: 'frutas'}, {n: 'Uva', t: 'frutas'},
+        {n: 'Tricera', t: 'dino'}, {n: 'Stego', t: 'dino'}, {n: 'Raptor', t: 'dino'}, {n: 'T-Rex', t: 'dino'}, {n: 'Spino', t: 'dino'},
+        {n: 'Gabriel', t: 'arcanjo'}, {n: 'Miguel', t: 'arcanjo'}, {n: 'Rafael', t: 'arcanjo'},
+        {n: 'Ducky', t: 'duck'}, {n: 'Shark', t: 'duck'}, {n: 'Soldier', t: 'duck'}, {n: 'Evil', t: 'duck'}, {n: 'Gangster', t: 'duck'}
+    ];
+
+    function renderCollection() {
+        const grid = document.getElementById('collection-grid');
+        grid.innerHTML = '';
+        const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧' };
+
+        ALL_PENGUINS.forEach(p => {
+            const key = p.t + ':' + p.n;
+            const isUnlocked = userData.unlocked && userData.unlocked.includes(key);
+            const inInventory = userData.inventory.some(inv => inv.name === p.n && inv.type === p.t);
+            
+            let rText = 'COMUM', rColor = '#888888';
+            if (['Spino', 'Gangster', 'Rafael'].includes(p.n)) { rText = 'LENDÁRIO'; rColor = '#ff9800'; }
+            else if (['T-Rex', 'Evil', 'Miguel', 'Pistache'].includes(p.n)) { rText = 'ULTRA-RARO'; rColor = '#9c27b0'; }
+            else if (['Raptor', 'Soldier', 'Gabriel', 'Uva'].includes(p.n) || (p.t === 'sorvete' && p.n === 'Morango')) { rText = 'RARO'; rColor = '#2196f3'; }
+            else if (['Stego', 'Shark', 'Chocolate', 'Melancia'].includes(p.n)) { rText = 'INCOMUM'; rColor = '#4caf50'; }
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.cursor = 'default';
+            card.style.padding = '10px';
+            
+            if (isUnlocked) {
+                const haveText = inInventory ? '<br><span style="font-size:10px; color:#4caf50;">🎒 NA MOCHILA</span>' : '';
+                card.innerHTML = `<div style="font-size:40px">${emojis[p.t] || '🐧'}</div>
+                                  <strong style="font-size: 14px;">${p.n}</strong>${haveText}<br>
+                                  <small style="color:${rColor}; font-weight:bold; font-size:10px;">${rText}</small>`;
+            } else {
+                card.style.background = '#e0e0e0'; card.style.borderColor = '#ccc';
+                card.innerHTML = `<div style="font-size:40px; filter: grayscale(100%); opacity: 0.5;">🔒</div>
+                                  <strong style="font-size: 14px; color: #888;">${p.n}</strong><br>
+                                  <small style="color:#aaa; font-weight:bold; font-size:10px;">${rText}</small>`;
+            }
+            grid.appendChild(card);
+        });
+    }
+
+    function renderInventory() {
+        const grid = document.getElementById('inventory-grid');
+        grid.innerHTML = '';
+        userData.inventory.forEach(p => {
+            const card = document.createElement('div');
+            card.className = `card ${userData.selectedId === p.id ? 'selected' : ''}`;
+            const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧' };
+            
+            // Sistema visual de Raridade Atualizado (5 Tiers) e Valor de Venda
+            let rText = 'COMUM', rColor = '#888888';
+            let sellPrice = 100;
+            const n = p.name, t = p.type;
+            if (['Spino', 'Gangster', 'Rafael'].includes(n)) { rText = 'LENDÁRIO'; rColor = '#ff9800'; sellPrice = 900; }
+            else if (['T-Rex', 'Evil', 'Miguel', 'Pistache'].includes(n)) { rText = 'ULTRA-RARO'; rColor = '#9c27b0'; sellPrice = 700; }
+            else if (['Raptor', 'Soldier', 'Gabriel', 'Uva'].includes(n) || (t === 'sorvete' && n === 'Morango')) { rText = 'RARO'; rColor = '#2196f3'; sellPrice = 500; }
+            else if (['Stego', 'Shark', 'Chocolate', 'Melancia'].includes(n)) { rText = 'INCOMUM'; rColor = '#4caf50'; sellPrice = 300; }
+
+            card.innerHTML = `<div style="font-size:50px">${emojis[t] || '🐧'}</div>
+                              <strong>${n}</strong><br>
+                              <small style="color:${rColor}; font-weight:bold; font-size:14px; letter-spacing:1px;">${rText}</small>`;
+            
+            // Botão de Venda (Se não estiver selecionado e se tiver mais de 1 skin na conta)
+            if (userData.selectedId !== p.id && userData.inventory.length > 1) {
+                const sellBtn = document.createElement('button');
+                sellBtn.innerHTML = `Vender 🧊 ${sellPrice}`;
+                sellBtn.style.cssText = "margin-top: 10px; background: #ff4757; color: white; border: none; border-radius: 10px; padding: 5px 10px; cursor: pointer; font-family: 'Fredoka One', cursive; width: 100%; box-shadow: 0 4px 0 #cc0000; transition: 0.2s;";
+                sellBtn.onmouseover = () => sellBtn.style.transform = 'scale(1.05)';
+                sellBtn.onmouseout = () => sellBtn.style.transform = 'scale(1)';
+                sellBtn.onclick = (e) => {
+                    e.stopPropagation(); // Evita que clique na venda equipe o pinguim
+                    if(confirm(`Deseja vender a skin ${n} por ${sellPrice} Gelo? Ela continuará aparecendo na sua Enciclopédia.`)) {
+                        userData.ice += sellPrice;
+                        userData.inventory = userData.inventory.filter(item => item.id !== p.id);
+                        save();
+                        renderInventory();
+                    }
+                };
+                card.appendChild(sellBtn);
+            }
+
+            card.onclick = () => { userData.selectedId = p.id; save(); renderInventory(); };
+            grid.appendChild(card);
+        });
+    }
+
+    function buyEgg(type) {
+        const prices = { 'pastel': 150, 'sorvete': 500, 'frutas': 700, 'dino': 1850, 'arcanjo': 1000, 'duck': 1050 };
+        const cost = prices[type] || 300;
+        if(userData.ice < cost) return;
+        userData.ice -= cost; save(); closeModal('shop-modal');
+        
+        let item;
+        if (type === 'sorvete') {
+            const rand = Math.random() * 100;
+            if (rand < 55) item = {n: 'Baunilha', c: 0xffffff, type: 'sorvete'}; // 55%
+            else if (rand < 85) item = {n: 'Chocolate', c: 0x5d4037, type: 'sorvete'}; // 30%
+            else if (rand < 95) item = {n: 'Morango', c: 0xff80ab, type: 'sorvete'}; // 10%
+            else item = {n: 'Pistache', c: 0xc5e1a5, type: 'sorvete'}; // 5%
+        } else if (type === 'frutas') {
+            const rand = Math.random() * 100;
+            if (rand < 60) item = {n: 'Morango', c: 0xff0000, type: 'frutas'}; // 60%
+            else if (rand < 90) item = {n: 'Melancia', c: 0x4caf50, type: 'frutas'}; // 30%
+            else item = {n: 'Uva', c: 0x800080, type: 'frutas'}; // 10%
+        } else if (type === 'dino') {
+            const rand = Math.random() * 100;
+            if (rand < 56) item = {n: 'Tricera', c: 0xd2b48c, type: 'dino'};
+            else if (rand < 89) item = {n: 'Stego', c: 0x556b2f, type: 'dino'}; // 56 + 33 = 89
+            else if (rand < 96) item = {n: 'Raptor', c: 0x87ceeb, type: 'dino'}; // 89 + 7 = 96
+            else if (rand < 99) item = {n: 'T-Rex', c: 0x32cd32, type: 'dino'}; // 96 + 3 = 99
+            else item = {n: 'Spino', c: 0xff0000, type: 'dino'}; // 1%
+        } else if (type === 'arcanjo') {
+            const rand = Math.random() * 100;
+            if (rand < 70) item = {n: 'Gabriel', c: 0xffffff, type: 'arcanjo'}; // 70%
+            else if (rand < 95) item = {n: 'Miguel', c: 0xffd700, type: 'arcanjo'}; // 25%
+            else item = {n: 'Rafael', c: 0x87ceeb, type: 'arcanjo'}; // 5%
+        } else if (type === 'duck') {
+            const rand = Math.random() * 100;
+            if (rand < 57) item = {n: 'Ducky', c: 0xffd700, type: 'duck'};
+            else if (rand < 90) item = {n: 'Shark', c: 0x708090, type: 'duck'}; // 57 + 33 = 90
+            else if (rand < 97) item = {n: 'Soldier', c: 0x556b2f, type: 'duck'}; // 90 + 7 = 97
+            else if (rand < 99) item = {n: 'Evil', c: 0x111111, type: 'duck'}; // 97 + 2 = 99
+            else item = {n: 'Gangster', c: 0xffffff, type: 'duck'}; // 1%
+        } else if (type === 'pastel') {
+            const pastelOptions = [
+                {n: 'Pastel Red', c: 0xffb3ba},
+                {n: 'Pastel Orange', c: 0xffdfba},
+                {n: 'Pastel Yellow', c: 0xffffba},
+                {n: 'Pastel Green', c: 0xbaffc9},
+                {n: 'Pastel Blue', c: 0xbae1ff},
+                {n: 'Pastel Purple', c: 0xd5baff},
+                {n: 'Pastel Pink', c: 0xffbaf2}
+            ];
+            const picked = pastelOptions[Math.floor(Math.random() * pastelOptions.length)];
+            item = {n: picked.n, c: picked.c, type: 'pastel'};
+        } else {
+            const normalOptions = [
+                {n: 'Azul', c: 0x1e90ff},
+                {n: 'Amarelo', c: 0xffcc00},
+                {n: 'Rosa', c: 0xff66b2},
+                {n: 'Roxo', c: 0x9c27b0},
+                {n: 'Laranja', c: 0xffa502}
+            ];
+            const picked = normalOptions[Math.floor(Math.random() * normalOptions.length)];
+            item = {n: picked.n, c: picked.c, type: 'normal'};
+        }
+        
+        const newPengu = { id: 'p_'+Date.now(), name: item.n, color: item.c, type: item.type };
+        const overlay = document.getElementById('egg-overlay');
+        const egg = document.getElementById('egg-visual');
+        const hatchEmojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧' };
+        
+        overlay.style.display = 'flex'; egg.innerHTML = '🥚'; egg.className = 'tremble';
+        setTimeout(() => {
+            egg.className = ''; egg.innerHTML = hatchEmojis[item.type] || '🐧';
+            
+            // Define a raridade também para a tela de animação do ovo (5 Tiers)
+            let rText = 'COMUM', rColor = '#888888';
+            if (['Spino', 'Gangster', 'Rafael'].includes(item.n)) { rText = 'LENDÁRIO'; rColor = '#ff9800'; }
+            else if (['T-Rex', 'Evil', 'Miguel', 'Pistache'].includes(item.n)) { rText = 'ULTRA-RARO'; rColor = '#9c27b0'; }
+            else if (['Raptor', 'Soldier', 'Gabriel', 'Uva'].includes(item.n) || (item.type === 'sorvete' && item.n === 'Morango')) { rText = 'RARO'; rColor = '#2196f3'; }
+            else if (['Stego', 'Shark', 'Chocolate', 'Melancia'].includes(item.n)) { rText = 'INCOMUM'; rColor = '#4caf50'; }
+
+            document.getElementById('reveal-name').innerHTML = `VOCÊ GANHOU: ${item.n.toUpperCase()}!<br><span style="font-size: 32px; color: ${rColor};">${rText}</span>`;
+            document.getElementById('reveal-name').style.opacity = 1; document.getElementById('claim-btn').style.display = 'block';
+            
+            // Adiciona na Enciclopédia
+            if (!userData.unlocked) userData.unlocked = [];
+            const unlockKey = item.type + ':' + item.n;
+            if (!userData.unlocked.includes(unlockKey)) {
+                userData.unlocked.push(unlockKey);
+            }
+
+            // Verifica se o jogador já possui esse pinguim antes de adicionar à mochila
+            const alreadyHas = userData.inventory.some(p => p.name === item.n);
+            if (!alreadyHas) {
+                userData.inventory.push(newPengu);
+            }
+        }, 1800);
+    }
+
+    function finishHatch() {
+        save(); document.getElementById('egg-overlay').style.display = 'none';
+        document.getElementById('reveal-name').style.opacity = 0; document.getElementById('claim-btn').style.display = 'none';
+    }
+
+    function resetMatch() {
+        // Limpa arena sem recarregar a página para manter dados
+        gameState = 'MENU';
+        penguins.forEach(p => scene.remove(p.group));
+        penguins = [];
+        document.getElementById('main-menu').style.display = 'block';
+        document.getElementById('bottom-btns').style.display = 'flex';
+        document.getElementById('timer-box').style.display = 'none';
+        document.getElementById('speed-selector').style.display = 'none';
+    }
+
+    function playAgain() {
+        closeModal('game-over-modal');
+        resetMatch();
+        startGame();
+    }
+
+    function backToLobby() {
+        closeModal('game-over-modal');
+        resetMatch();
+    }
+
+    function claimVictory() {
+        closeModal('victory-modal');
+        resetMatch();
+    }
+
+    function startGame() {
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('bottom-btns').style.display = 'none';
+        document.getElementById('timer-box').style.display = 'block';
+        document.getElementById('cam-hint').style.display = 'block';
+        document.getElementById('speed-selector').style.display = 'flex';
+        
+        penguins.forEach(p => scene.remove(p.group));
+        penguins = [];
+        
+        const pConfig = userData.inventory.find(i => i.id === userData.selectedId) || userData.inventory[0];
+        for(let i=0; i<PENGUIN_COUNT; i++) {
+            const isP = i === 0;
+            let config = isP ? pConfig : { color: Math.random() * 0xffffff, type: Math.random() > 0.6 ? 'sorvete' : 'normal', name: 'Bot' };
+            const m = createPenguinMesh(config);
+            const dist = 12; const ang = (Math.PI*2/PENGUIN_COUNT)*i;
+            m.group.position.set(Math.cos(ang)*dist, 0.5, Math.sin(ang)*dist);
+            const pObj = {
+                group: m.group, arrow: m.arrow, isPlayer: isP, alive: true,
+                angle: isP ? Math.PI : Math.random()*Math.PI*2,
+                targetAngle: isP ? Math.PI : Math.random()*Math.PI*2,
+                power: 0.25, velocity: new THREE.Vector3(), radius: 0.9
+            };
+            penguins.push(pObj); scene.add(m.group); if(isP) player = pObj;
+        }
+        gameState = 'PLANNING'; timer = TURN_TIME; setPower(0.55);
+    }
+
+    function setPower(p) { 
+        if(!player) return; player.power = p; 
+        player.arrow.scale.set(1, 1, 0.4 + p * 1.5); 
+        player.arrow.children[0].material.color.setHSL(0.35 - (p-0.2)*0.25, 1, 0.5);
+        player.arrow.children[1].material.color.setHSL(0.35 - (p-0.2)*0.25, 1, 0.5);
+    }
+
+    function lerpAngle(current, target, lerpFactor) {
+        let diff = target - current;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        return current + diff * lerpFactor;
+    }
+
+    function update(dt) {
+        camLon = THREE.MathUtils.lerp(camLon, camTargetLon, 0.1);
+
+        if(gameState === 'PLANNING') {
+            timer -= dt;
+            document.getElementById('timer-box').innerText = Math.ceil(timer);
+            penguins.forEach(p => {
+                if(!p.alive) return;
+                
+                if (!p.isPlayer) {
+                    let closest = null;
+                    let minDist = Infinity;
+                    penguins.forEach(other => {
+                        if (other === p || !other.alive) return;
+                        const d = p.group.position.distanceTo(other.group.position);
+                        let weight = other.isPlayer ? 0.7 : 1.0; 
+                        if (d * weight < minDist) {
+                            minDist = d * weight;
+                            closest = other;
+                        }
+                    });
+
+                    if (closest) {
+                        const dir = closest.group.position.clone().sub(p.group.position);
+                        p.targetAngle = Math.atan2(dir.x, dir.z);
+                        if (minDist < 6) p.power = 0.25;
+                        else if (minDist < 12) p.power = 0.55;
+                        else p.power = 0.85;
+                    }
+                }
+
+                p.angle = lerpAngle(p.angle, p.targetAngle, 0.15);
+                p.group.rotation.y = p.angle;
+                p.arrow.visible = p.isPlayer;
+            });
+
+            if(timer <= 0) {
+                gameState = 'SLIDING'; timer = 0;
+                document.getElementById('speed-selector').style.display = 'none';
+                document.getElementById('cam-hint').style.display = 'none';
+                penguins.forEach(p => {
+                    if(!p.alive) return;
+                    p.arrow.visible = false;
+                    const force = 12 + p.power * 22; 
+                    p.velocity.set(Math.sin(p.angle)*force, 0, Math.cos(p.angle)*force);
+                });
+            }
+        } else if(gameState === 'SLIDING') {
+            timer += dt;
+            const subDt = dt / PHYSICS_STEPS;
+            for(let step = 0; step < PHYSICS_STEPS; step++) {
+                penguins.forEach(p => {
+                    if(!p.alive) return;
+                    p.group.position.add(p.velocity.clone().multiplyScalar(subDt));
+                    
+                    let speed = p.velocity.length();
+                    let currentFriction = FRICTION_BASE;
+                    
+                    if(speed < 12) currentFriction *= 0.99;
+                    if(speed < 6) currentFriction *= 0.975;
+                    
+                    p.velocity.multiplyScalar(Math.pow(currentFriction, 1/PHYSICS_STEPS));
+                    
+                    if(speed < STOP_THRESHOLD) p.velocity.set(0, 0, 0);
+                    
+                    if(speed > 0.5) {
+                        const moveAng = Math.atan2(p.velocity.x, p.velocity.z);
+                        p.angle = lerpAngle(p.angle, moveAng, 0.1);
+                        p.group.rotation.y = p.angle;
+                    }
+
+                    if(Math.abs(p.group.position.x) > ARENA_SIZE/2 || Math.abs(p.group.position.z) > ARENA_SIZE/2) {
+                        if(p.alive) {
+                            p.alive = false;
+                            const fallAnim = () => {
+                                if(p.group.position.y > -15) { p.group.position.y -= 0.6; p.group.rotation.z += 0.3; requestAnimationFrame(fallAnim); }
+                            };
+                            fallAnim();
+                        }
+                    }
+                });
+
+                for(let i=0; i<penguins.length; i++) {
+                    for(let j=i+1; j<penguins.length; j++) {
+                        const a = penguins[i], b = penguins[j];
+                        if(!a.alive || !b.alive) continue;
+                        const dist = a.group.position.distanceTo(b.group.position);
+                        const minDist = a.radius + b.radius;
+                        if(dist < minDist) {
+                            const overlap = minDist - dist;
+                            const normal = a.group.position.clone().sub(b.group.position).normalize();
+                            const push = normal.clone().multiplyScalar(overlap * 0.5);
+                            a.group.position.add(push); b.group.position.sub(push);
+                            const vRel = a.velocity.clone().sub(b.velocity);
+                            const velAlongNormal = vRel.dot(normal);
+                            if(velAlongNormal < 0) {
+                                let impulseMag = -(1.7) * velAlongNormal; 
+                                impulseMag /= 2;
+                                const impulse = normal.multiplyScalar(impulseMag);
+                                a.velocity.add(impulse); b.velocity.sub(impulse);
+                            }
+                        }
+                    }
+                }
+            }
+
+            const moving = penguins.some(p => p.alive && p.velocity.length() > 0.4);
+            if(!moving && timer > 0.8) {
+                const enemies = penguins.filter(p => !p.isPlayer && p.alive).length;
+                if(!player.alive) { 
+                    gameState = 'GAME_OVER';
+                    document.getElementById('final-position').innerText = enemies + 1;
+                    openModal('game-over-modal');
+                    document.getElementById('speed-selector').style.display = 'none'; 
+                    document.getElementById('cam-hint').style.display = 'none';
+                }
+                else if(enemies === 0) { 
+                    userData.ice += 500; // Vitória recompensa com 500 agora
+                    save(); 
+                    gameState = 'VICTORY'; // Trava o jogo na tela de vitória
+                    openModal('victory-modal');
+                    document.getElementById('speed-selector').style.display = 'none'; 
+                    document.getElementById('cam-hint').style.display = 'none';
+                }
+                else { 
+                    gameState = 'PLANNING'; 
+                    timer = TURN_TIME; 
+                    document.getElementById('speed-selector').style.display = 'flex'; 
+                    document.getElementById('cam-hint').style.display = 'block';
+                }
+            }
+        }
+        
+        if(player?.alive) {
+            const rad = camLon * (Math.PI / 180);
+            const dist = 45;
+            const camX = player.group.position.x + Math.sin(rad) * dist;
+            const camZ = player.group.position.z + Math.cos(rad) * dist;
+            const camY = 35; 
+
+            camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.1);
+            camera.lookAt(player.group.position);
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if(gameState !== 'MENU') update(clock.getDelta());
+        renderer.render(scene, camera);
+    }
+
+    init();
+</script>
+</body>
+</html>
