@@ -168,6 +168,7 @@
         <div class="circle-btn" onclick="openModal('shop-modal')" title="Loja">🥚</div>
         <div class="circle-btn" onclick="openModal('collection-modal')" title="Enciclopédia">📖</div>
         <div class="circle-btn" onclick="openModal('inv-modal')" title="Mochila">🎒</div>
+        <div class="circle-btn" onclick="openModal('ranking-modal')" title="Ranking Global">🏆</div>
     </div>
 
     <!-- Modais -->
@@ -212,6 +213,19 @@
         <span class="close-modal" onclick="closeModal('inv-modal')">&times;</span>
         <h2 style="text-align:center; font-size: 32px; color: #4caf50;">MINHA COLEÇÃO</h2>
         <div id="inventory-grid" class="grid" style="max-height: 55vh; overflow-y: auto; padding-right: 10px;"></div>
+    </div>
+
+    <!-- Modal de Ranking Global -->
+    <div id="ranking-modal" class="modal" style="max-width: 500px; width: 95%;">
+        <span class="close-modal" onclick="closeModal('ranking-modal')">&times;</span>
+        <h2 style="text-align:center; font-size: 32px; color: #ff9800;">🏆 RANKING GLOBAL 🏆</h2>
+        <div style="text-align:center; margin-bottom: 15px;">
+            <input type="text" id="player-name-input" placeholder="Seu Apelido..." maxlength="12" style="padding: 10px; border-radius: 10px; border: 2px solid #ff9800; font-family: 'Fredoka One'; width: 50%;">
+            <button class="btn-main" style="font-size: 14px; padding: 10px 20px; background: #ff9800; box-shadow: 0 4px 0 #cc7a00;" onclick="updatePlayerName()">SALVAR NOME</button>
+        </div>
+        <div id="ranking-list" style="max-height: 40vh; overflow-y: auto; text-align: left; background: #f9f9f9; padding: 15px; border-radius: 15px; border: 2px solid #eee;">
+            <div style="text-align:center; color:#888; font-family: sans-serif;">Conectando ao servidor online...</div>
+        </div>
     </div>
 
     <!-- Modal da Enciclopédia -->
@@ -300,6 +314,8 @@
     };
 
     // --- SISTEMA DE DADOS ---
+    let playerName = localStorage.getItem('pengu_player_name') || "Jogador" + Math.floor(Math.random()*1000);
+
     function load() {
         const d = localStorage.getItem('pengu_deluxe_v1');
         if(d) {
@@ -331,8 +347,110 @@
     function save() {
         localStorage.setItem('pengu_deluxe_v1', JSON.stringify(userData));
         updateUI();
+        if (typeof syncToCloud === 'function') syncToCloud(); // Sincroniza com a nuvem sempre que salva
     }
     function updateUI() { document.getElementById('ice-count').innerText = userData.ice; }
+
+    // --- SISTEMA ONLINE (FIREBASE MULTIPLAYER/RANKING) ---
+    let db, auth, userId;
+    let rankingData = [];
+    
+    async function initFirebase() {
+        try {
+            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+            const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getFirestore, doc, setDoc, collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            if (!firebaseConfig) return;
+
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'pinguin-arena';
+
+            const initAuth = async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            };
+            await initAuth();
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('player-name-input').value = playerName;
+                    
+                    // Escuta o Ranking Global em tempo real
+                    const rankingRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                    onSnapshot(rankingRef, (snapshot) => {
+                        rankingData = [];
+                        snapshot.forEach(doc => {
+                            rankingData.push({ id: doc.id, ...doc.data() });
+                        });
+                        // Ordena localmente os jogadores com mais gelo
+                        rankingData.sort((a, b) => b.ice - a.ice);
+                        if (document.getElementById('ranking-modal').style.display === 'block') {
+                            renderRanking();
+                        }
+                    }, (error) => console.error("Erro no ranking:", error));
+                    
+                    syncToCloud();
+                }
+            });
+
+            window.syncToCloud = async function() {
+                if (!userId || !db) return;
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', userId);
+                await setDoc(userRef, {
+                    name: playerName,
+                    ice: userData.ice,
+                    skinsCount: userData.inventory.length
+                }, { merge: true });
+            }
+
+        } catch (e) { console.log("Servidor online offline no momento.", e); }
+    }
+    initFirebase();
+
+    function updatePlayerName() {
+        const input = document.getElementById('player-name-input').value.trim();
+        if (input) {
+            playerName = input;
+            localStorage.setItem('pengu_player_name', playerName);
+            if (typeof syncToCloud === 'function') syncToCloud();
+            alert("Nome salvo com sucesso! Você já está no Ranking Global.");
+            renderRanking();
+        }
+    }
+
+    function renderRanking() {
+        const list = document.getElementById('ranking-list');
+        list.innerHTML = '';
+        if (rankingData.length === 0) {
+            list.innerHTML = '<div style="text-align:center; color:#888; font-family: sans-serif;">Nenhum jogador encontrado. Seja o primeiro!</div>';
+            return;
+        }
+        
+        rankingData.slice(0, 50).forEach((p, index) => {
+            const div = document.createElement('div');
+            div.style.cssText = `display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #ccc; font-family: sans-serif; align-items: center; background: ${p.id === userId ? '#fff3e0' : 'transparent'}; font-weight: ${p.id === userId ? 'bold' : 'normal'}; border-radius: 8px; margin-bottom: 5px;`;
+            
+            let medal = `#${index + 1}`;
+            if (index === 0) medal = '<span style="font-size:24px;">🥇</span>';
+            if (index === 1) medal = '<span style="font-size:24px;">🥈</span>';
+            if (index === 2) medal = '<span style="font-size:24px;">🥉</span>';
+
+            div.innerHTML = `
+                <span style="font-size: 16px; width: 45px; text-align: center;">${medal}</span>
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 10px; font-size: 18px;">${p.name}</span>
+                <span style="color: #0077ff; font-weight: bold; font-size: 18px;">🧊 ${p.ice}</span>
+            `;
+            list.appendChild(div);
+        });
+    }
 
     // --- ENGINE GRÁFICA ---
     function init() {
@@ -636,6 +754,7 @@
         document.getElementById(id).style.display = 'block';
         if(id === 'inv-modal') renderInventory();
         if(id === 'collection-modal') renderCollection();
+        if(id === 'ranking-modal') renderRanking();
     }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
