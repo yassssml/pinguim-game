@@ -243,6 +243,47 @@
             border-radius: 10px; color: #00b8d4; font-size: 13px; font-family: sans-serif;
             margin-bottom: 10px;
         }
+
+        /* === MODAL DE MODO DE JOGO === */
+        .play-mode-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: linear-gradient(145deg, #fff, #f0faff);
+            padding: 40px 35px; border-radius: 35px; border: 6px solid #00f2ff;
+            width: 90%; max-width: 480px; text-align: center;
+            pointer-events: auto; z-index: 200; display: none;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+        }
+        .play-mode-title {
+            font-size: 30px; color: #0077ff; margin: 0 0 8px;
+        }
+        .play-mode-subtitle {
+            font-size: 14px; color: #aaa; font-family: sans-serif; margin-bottom: 28px;
+        }
+        .play-mode-options {
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .play-mode-btn {
+            display: flex; align-items: center; gap: 18px; padding: 18px 24px;
+            border-radius: 22px; border: none; cursor: pointer; width: 100%;
+            font-family: 'Fredoka One', cursive; font-size: 22px;
+            transition: all 0.15s; text-align: left;
+        }
+        .play-mode-btn:hover { transform: scale(1.03); }
+        .play-mode-btn:active { transform: scale(0.98); }
+        .play-mode-btn .mode-icon { font-size: 42px; flex-shrink: 0; }
+        .play-mode-btn .mode-info { display: flex; flex-direction: column; }
+        .play-mode-btn .mode-name { font-size: 22px; }
+        .play-mode-btn .mode-desc { font-size: 12px; font-weight: normal;
+            font-family: sans-serif; opacity: 0.75; margin-top: 2px; }
+        .btn-solo { background: linear-gradient(135deg, #fff9c4, #fff176); color: #5d4037;
+            box-shadow: 0 6px 0 #f9a825; border: 3px solid #ffe082; }
+        .btn-with-friends { background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0;
+            box-shadow: 0 6px 0 #1976d2; border: 3px solid #90caf9; }
+        .btn-join-quick { background: linear-gradient(135deg, #fce4ec, #f8bbd9); color: #880e4f;
+            box-shadow: 0 6px 0 #c2185b; border: 3px solid #f48fb1; }
+        .play-mode-close { position: absolute; top: 14px; right: 22px; font-size: 36px;
+            cursor: pointer; color: #bbb; transition: 0.2s; background: none; border: none; }
+        .play-mode-close:hover { color: #f44336; }
     </style>
 </head>
 <body>
@@ -254,10 +295,36 @@
 
     <div id="main-menu">
         <h1 class="logo text-outline">PENGUIN<br>KNOCKOUT</h1>
-        <button class="btn-main" onclick="startGame()">JOGAR AGORA</button>
-        <div class="room-buttons">
-            <button class="btn-room btn-create" onclick="openCreateRoom()">🏠 CRIAR SALA</button>
-            <button class="btn-room btn-join" onclick="openJoinRoom()">🚪 ENTRAR NA SALA</button>
+        <button class="btn-main" onclick="openPlayModal()">JOGAR AGORA</button>
+    </div>
+
+    <!-- Modal de Modo de Jogo -->
+    <div id="play-mode-modal" class="play-mode-modal">
+        <button class="play-mode-close" onclick="closeModal('play-mode-modal')">✕</button>
+        <h2 class="play-mode-title">Como quer jogar?</h2>
+        <p class="play-mode-subtitle">Escolha seu modo de jogo</p>
+        <div class="play-mode-options">
+            <button class="play-mode-btn btn-solo" onclick="closeModal('play-mode-modal'); startGame();">
+                <span class="mode-icon">🤖</span>
+                <span class="mode-info">
+                    <span class="mode-name">SOLO</span>
+                    <span class="mode-desc">Jogue contra 9 bots na arena de gelo</span>
+                </span>
+            </button>
+            <button class="play-mode-btn btn-with-friends" onclick="closeModal('play-mode-modal'); openCreateRoom();">
+                <span class="mode-icon">🏠</span>
+                <span class="mode-info">
+                    <span class="mode-name">CRIAR SALA</span>
+                    <span class="mode-desc">Crie uma sala e convide seus amigos</span>
+                </span>
+            </button>
+            <button class="play-mode-btn btn-join-quick" onclick="closeModal('play-mode-modal'); openJoinRoom();">
+                <span class="mode-icon">🚪</span>
+                <span class="mode-info">
+                    <span class="mode-name">ENTRAR NA SALA</span>
+                    <span class="mode-desc">Entre com o código ou link de um amigo</span>
+                </span>
+            </button>
         </div>
     </div>
 
@@ -1289,6 +1356,10 @@
         requestAnimationFrame(animate);
         if(gameState !== 'MENU') update(clock.getDelta());
         renderer.render(scene, camera);
+    }
+
+    function openPlayModal() {
+        document.getElementById('play-mode-modal').style.display = 'block';
     }
 
     init();
