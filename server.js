@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 
 // Driver Neon Serverless — conecta via WebSocket (porta 443) em vez de TCP 5432
 // Funciona mesmo em redes que bloqueiam a porta 5432 do PostgreSQL
@@ -21,10 +22,41 @@ if (process.env.DATABASE_URL) {
     sql = neon(process.env.DATABASE_URL);
 }
 
+// Funções de criptografia
+function hashPassword(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+    const [salt, key] = storedHash.split(':');
+    if (!salt || !key) return false;
+    const hashBuffer = crypto.scryptSync(password, salt, 64);
+    const keyBuffer = Buffer.from(key, 'hex');
+    return crypto.timingSafeEqual(hashBuffer, keyBuffer);
+}
+
 // --- INICIALIZAÇÃO DAS TABELAS ---
 async function initDB() {
     if (!sql) return false;
     try {
+        // Tabela de contas
+        await sql`
+            CREATE TABLE IF NOT EXISTS accounts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                display_name VARCHAR(50) NOT NULL,
+                ice INTEGER NOT NULL DEFAULT 0,
+                skins_count INTEGER NOT NULL DEFAULT 1,
+                inventory_data JSONB,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `;
+
+        // Tabela antiga para manter compatibilidade, mas vamos migrar a lógica pro accounts
         await sql`
             CREATE TABLE IF NOT EXISTS leaderboard (
                 user_id     VARCHAR(64) PRIMARY KEY,
@@ -34,7 +66,7 @@ async function initDB() {
                 updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         `;
-        console.log('✅ Tabela "leaderboard" pronta no Neon.');
+        console.log('✅ Tabelas "accounts" e "leaderboard" prontas no Neon.');
         return true;
     } catch (err) {
         console.error('❌ Erro ao conectar com o banco:', err.message);
@@ -56,8 +88,8 @@ app.get('/api/ranking', async (req, res) => {
     if (!sql) return res.status(503).json({ error: 'Banco não configurado' });
     try {
         const rows = await sql`
-            SELECT user_id, name, ice, skins_count
-            FROM leaderboard
+            SELECT id as user_id, display_name as name, ice, skins_count
+            FROM accounts
             ORDER BY ice DESC
             LIMIT 50
         `;
@@ -68,32 +100,106 @@ app.get('/api/ranking', async (req, res) => {
     }
 });
 
-// POST /api/ranking — Cria ou atualiza dados do jogador
-app.post('/api/ranking', async (req, res) => {
+// POST /api/register — Criar nova conta
+app.post('/api/register', async (req, res) => {
     if (!sql) return res.status(503).json({ error: 'Banco não configurado' });
-    const { userId, name, ice, skinsCount } = req.body;
+    const { username, password, displayName, ice, inventoryData } = req.body;
 
-    if (!userId || !name) {
-        return res.status(400).json({ error: 'userId e name são obrigatórios' });
+    if (!username || !password || !displayName) {
+        return res.status(400).json({ error: 'Preencha todos os campos' });
     }
 
     try {
+        // Verifica se usuário já existe
+        const existing = await sql`SELECT id FROM accounts WHERE username = ${username} LIMIT 1`;
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'Nome de usuário já está em uso' });
+        }
+
+        const passHash = hashPassword(password);
+        const skinsCount = inventoryData ? inventoryData.length : 1;
+        const invJson = inventoryData ? JSON.stringify(inventoryData) : null;
+
+        const result = await sql`
+            INSERT INTO accounts (username, password_hash, display_name, ice, skins_count, inventory_data)
+            VALUES (${username}, ${passHash}, ${displayName}, ${ice || 0}, ${skinsCount}, ${invJson})
+            RETURNING id, username, display_name, ice, inventory_data
+        `;
+
+        res.json({ success: true, account: result[0] });
+    } catch (err) {
+        console.error('Erro no registro:', err.message);
+        res.status(500).json({ error: 'Erro interno ao criar conta' });
+    }
+});
+
+// POST /api/login — Entrar na conta
+app.post('/api/login', async (req, res) => {
+    if (!sql) return res.status(503).json({ error: 'Banco não configurado' });
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Preencha usuário e senha' });
+    }
+
+    try {
+        const result = await sql`SELECT * FROM accounts WHERE username = ${username} LIMIT 1`;
+        if (result.length === 0) {
+            return res.status(401).json({ error: 'Usuário não encontrado' });
+        }
+
+        const account = result[0];
+        if (!verifyPassword(password, account.password_hash)) {
+            return res.status(401).json({ error: 'Senha incorreta' });
+        }
+
+        res.json({ 
+            success: true, 
+            account: {
+                id: account.id,
+                username: account.username,
+                display_name: account.display_name,
+                ice: account.ice,
+                inventory_data: account.inventory_data
+            }
+        });
+    } catch (err) {
+        console.error('Erro no login:', err.message);
+        res.status(500).json({ error: 'Erro interno ao fazer login' });
+    }
+});
+
+// POST /api/save-progress — Salva gelo, skins e nome de exibição
+app.post('/api/save-progress', async (req, res) => {
+    if (!sql) return res.status(503).json({ error: 'Banco não configurado' });
+    const { accountId, displayName, ice, inventoryData } = req.body;
+
+    if (!accountId) {
+        return res.status(400).json({ error: 'accountId é obrigatório' });
+    }
+
+    try {
+        const skinsCount = inventoryData ? inventoryData.length : 1;
+        const invJson = inventoryData ? JSON.stringify(inventoryData) : null;
+
         await sql`
-            INSERT INTO leaderboard (user_id, name, ice, skins_count, updated_at)
-            VALUES (${userId}, ${name}, ${ice ?? 0}, ${skinsCount ?? 1}, NOW())
-            ON CONFLICT (user_id)
-            DO UPDATE SET
-                name        = EXCLUDED.name,
-                ice         = EXCLUDED.ice,
-                skins_count = EXCLUDED.skins_count,
-                updated_at  = NOW()
+            UPDATE accounts SET
+                display_name = COALESCE(${displayName}, display_name),
+                ice = COALESCE(${ice}, ice),
+                skins_count = COALESCE(${skinsCount}, skins_count),
+                inventory_data = COALESCE(${invJson}, inventory_data),
+                updated_at = NOW()
+            WHERE id = ${accountId}
         `;
         res.json({ success: true });
     } catch (err) {
-        console.error('Erro ao salvar ranking:', err.message);
+        console.error('Erro ao salvar progresso:', err.message);
         res.status(500).json({ error: 'Erro ao salvar dados' });
     }
 });
+
+// Rota de fallback do ranking antigo pra não quebrar
+app.post('/api/ranking', async (req, res) => { res.json({ success: true, warning: 'deprecated' }); });
 
 // GET /api/health — Verificação de saúde
 app.get('/api/health', async (req, res) => {
