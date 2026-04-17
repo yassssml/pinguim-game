@@ -332,6 +332,8 @@
         </div>
 
         <button id="auth-action-btn" class="auth-btn" onclick="submitAuth()">ENTRAR</button>
+        <button class="auth-btn" style="background: #e0e0e0; color: #333;" onclick="playAsGuest()">JOGAR SEM CONTA</button>
+        
         <div class="auth-link" id="auth-toggle-link" onclick="toggleAuthMode()">Não tem conta? Crie uma aqui</div>
         <p id="auth-error" style="color: #ff3333; font-size: 12px; margin-top: 10px; font-family: sans-serif; display: none;"></p>
     </div>
@@ -556,16 +558,41 @@
     // --- SISTEMA DE CONTAS E DADOS ---
     let playerName = localStorage.getItem('pengu_player_name') || "Jogador" + Math.floor(Math.random()*1000);
     let accountId = localStorage.getItem('pengu_account_id');
-    let userId = accountId; // Para manter compatibilidade com o resto do código
+    
+    // Gera um ID temporário se não tiver conta (para o ranking ao vivo e multiplayer)
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+    let userId = accountId; 
+    if (!userId) {
+        let localId = localStorage.getItem('pengu_local_id');
+        if (!localId) { localId = generateUUID(); localStorage.setItem('pengu_local_id', localId); }
+        userId = localId;
+    }
+
     let isAuthModeLogin = true;
+    let isGuest = sessionStorage.getItem('pengu_guest') === 'true';
 
     function checkAuth() {
-        if (!accountId) {
+        if (!accountId && !isGuest) {
             document.getElementById('modal-overlay').style.display = 'block';
             document.getElementById('auth-modal').style.display = 'block';
             return false;
         }
         return true;
+    }
+
+    function playAsGuest() {
+        sessionStorage.setItem('pengu_guest', 'true');
+        isGuest = true;
+        document.getElementById('modal-overlay').style.display = 'none';
+        document.getElementById('auth-modal').style.display = 'none';
+        
+        initializeOnlineSystems();
+        init(); // Continua o carregamento do jogo
     }
 
     function toggleAuthMode() {
@@ -710,7 +737,19 @@
     const API_BASE = window.location.origin; // Aponta para o servidor Express local
 
     async function syncToCloud() {
-        if (!accountId) return; // Não sincroniza se não estiver logado
+        // Envia os dados para o ranking ao vivo via WebSocket (para todos, inclusive visitantes)
+        if (mpSocket && mpSocket.readyState === WebSocket.OPEN) {
+            sendMP({
+                type: 'GLOBAL_SYNC',
+                playerId: userId,
+                playerName: playerName,
+                ice: userData.ice,
+                skinsCount: userData.inventory.length
+            });
+        }
+
+        // Salva permanentemente no banco se tiver conta
+        if (!accountId) return; 
         try {
             await fetch(`${API_BASE}/api/save-progress`, {
                 method: 'POST',
@@ -723,7 +762,7 @@
                 })
             });
         } catch (e) {
-            console.warn('Servidor offline, dados salvos apenas localmente.', e);
+            console.warn('Servidor de salvar progresso offline.', e);
         }
     }
 
@@ -749,7 +788,16 @@
     // Inicialização da interface (só chamada após o auth check no init)
     function initializeOnlineSystems() {
         document.getElementById('player-name-input').value = playerName;
-        syncToCloud();
+        
+        // Conecta ao WebSocket globalmente para o ranking ao vivo
+        connectWS(() => {
+            syncToCloud(); // Avisa o servidor sobre minha presença
+            
+            // Se tinha uma sala pendente via link, entra nela logo após conectar o WS!
+            if (pendingRoomToJoin) {
+                setTimeout(() => joinRoomByCode(pendingRoomToJoin), 500);
+            }
+        });
     }
 
     function updatePlayerName() {
@@ -1546,7 +1594,11 @@
     function connectWS(onOpen) {
         if (mpSocket && mpSocket.readyState === WebSocket.OPEN) { if(onOpen) onOpen(); return; }
         mpSocket = new WebSocket(getWsUrl());
-        mpSocket.onopen = () => { if(onOpen) onOpen(); };
+        mpSocket.onopen = () => { 
+            // Garante que o servidor saiba quem sou assim que reconectar
+            syncToCloud(); 
+            if(onOpen) onOpen(); 
+        };
         mpSocket.onmessage = (e) => {
             let msg;
             try { msg = JSON.parse(e.data); } catch { return; }

@@ -83,19 +83,24 @@ app.use(express.static(path.join(__dirname)));
 
 // --- ROTAS DA API ---
 
-// GET /api/ranking — Retorna top 50 jogadores por gelo
-app.get('/api/ranking', async (req, res) => {
-    if (!sql) return res.status(503).json({ error: 'Banco não configurado' });
+// --- SISTEMA DE RANKING AO VIVO ---
+// Armazena quem está online no momento: ws -> { id, name, ice, skinsCount }
+const activePlayers = new Map();
+
+// GET /api/ranking — Retorna jogadores online, ordenados por gelo
+app.get('/api/ranking', (req, res) => {
     try {
-        const rows = await sql`
-            SELECT id as user_id, display_name as name, ice, skins_count
-            FROM accounts
-            ORDER BY ice DESC
-            LIMIT 50
-        `;
-        res.json(rows);
+        const playersList = Array.from(activePlayers.values());
+        playersList.sort((a, b) => b.ice - a.ice);
+        // Retorna top 50 ao vivo
+        res.json(playersList.slice(0, 50).map(p => ({
+            user_id: p.id,
+            name: p.name,
+            ice: p.ice,
+            skins_count: p.skinsCount
+        })));
     } catch (err) {
-        console.error('Erro ao buscar ranking:', err.message);
+        console.error('Erro ao gerar ranking ao vivo:', err.message);
         res.status(500).json({ error: 'Erro ao buscar ranking' });
     }
 });
