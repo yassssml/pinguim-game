@@ -1687,7 +1687,6 @@
     let mpIsHost = false;
     let mpPlayers = [];
     let mpMode = false;       // true quando estiver em partida multiplayer
-    let mpMyId = userId;      // Reutiliza o userId já existente
     let mpGameData = null;    // dados recebidos do GAME_START
 
     function getWsUrl() {
@@ -1742,7 +1741,7 @@
         connectWS(() => {
             sendMP({
                 type: 'CREATE_ROOM',
-                playerId: mpMyId,
+                playerId: userId,
                 playerName: playerName,
                 skinType: pConfig.type || 'normal',
                 skinColor: pConfig.color || 0x333333,
@@ -1774,7 +1773,7 @@
             sendMP({
                 type: 'JOIN_ROOM',
                 code: code,
-                playerId: mpMyId,
+                playerId: userId,
                 playerName: playerName,
                 skinType: pConfig.type || 'normal',
                 skinColor: pConfig.color || 0x333333,
@@ -1833,7 +1832,7 @@
         players.forEach(p => {
             const li = document.createElement('li');
             li.className = 'lobby-player-item' + (p.id === hostId ? ' is-host' : '');
-            const isMe = p.id === mpMyId;
+            const isMe = p.id === userId;
             li.innerHTML = `
                 <span class="player-icon">${emojis[p.skinType] || '🐧'}</span>
                 <span class="player-name">${p.name}${isMe ? ' (Você)' : ''}</span>
@@ -1860,7 +1859,7 @@
 
             case 'ROOM_JOINED':
                 mpRoomCode = msg.code;
-                mpIsHost = (msg.hostId === mpMyId);
+                mpIsHost = (msg.hostId === userId);
                 closeModal('room-join-modal');
                 openModal('room-create-modal');
                 document.getElementById('room-code-display').textContent = msg.code;
@@ -1869,7 +1868,7 @@
 
             case 'PLAYER_LIST':
                 mpPlayers = msg.players;
-                mpIsHost = (msg.hostId === mpMyId);
+                mpIsHost = (msg.hostId === userId);
                 renderLobbyPlayers(msg.players, msg.hostId);
                 break;
 
@@ -1916,14 +1915,14 @@
         const pConfig = userData.inventory.find(i => i.id === userData.selectedId) || userData.inventory[0];
 
         data.players.forEach((pd, i) => {
-            const isMe = (pd.id === mpMyId);
+            const isMe = (pd.id === userId);
             let config;
             if (isMe) {
                 config = pConfig;
             } else {
                 config = { color: pd.skinColor, type: pd.skinType || 'normal', name: pd.skinName || 'Bot' };
             }
-            const m = createPenguinMesh(config, pd.playerName || (pd.isBot ? `Bot ${i}` : 'Jogador'));
+            const m = createPenguinMesh(config, pd.name || (pd.isBot ? `Bot ${i}` : 'Jogador'));
             m.group.position.set(pd.position.x, 0.5, pd.position.z);
             const pObj = {
                 group: m.group, arrow: m.arrow, isPlayer: isMe, alive: true,

@@ -282,6 +282,28 @@ wss.on('connection', (socket) => {
         try { msg = JSON.parse(raw); } catch { return; }
 
         switch (msg.type) {
+            case 'GLOBAL_SYNC': {
+                activePlayers.set(socket, {
+                    id: msg.playerId,
+                    name: msg.playerName,
+                    ice: msg.ice || 0,
+                    skinsCount: msg.skinsCount || 1
+                });
+                
+                // Se o jogador estiver em uma sala, atualiza o nome dele lá também!
+                if (currentRoom) {
+                    const room = rooms.get(currentRoom);
+                    if (room) {
+                        const me = room.players.find(p => p.id === msg.playerId);
+                        if (me) {
+                            me.name = msg.playerName;
+                            sendPlayerList(currentRoom); // Avisa os outros na sala que o nome mudou
+                        }
+                    }
+                }
+                break;
+            }
+
 
             case 'CREATE_ROOM': {
                 const code = generateRoomCode();
