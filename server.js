@@ -382,15 +382,13 @@ wss.on('connection', (socket) => {
                     position: startPositions[i]
                 }));
 
-                // Completa com bots
-                for (let i = room.players.length; i < totalSlots; i++) {
-                // Completa com bots se solicitado
+                // Adiciona bots se solicitado
                 const fillWithBots = msg.fillWithBots !== false;
                 if (fillWithBots) {
                     for (let i = room.players.length; i < totalSlots; i++) {
                         playerPositions.push({
                             id: 'bot_' + i,
-                            name: 'Bot',
+                            name: `Bot ${i}`,
                             skinType: Math.random() > 0.6 ? 'sorvete' : 'normal',
                             skinColor: Math.floor(Math.random() * 0xffffff),
                             skinName: 'Bot',
