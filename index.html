@@ -312,6 +312,52 @@
         .auth-link {
             font-size: 13px; color: #0077ff; cursor: pointer; text-decoration: underline; font-family: sans-serif;
         }
+
+        /* === RESPONSIVIDADE MOBILE HORIZONTAL === */
+        @media (max-width: 900px) and (orientation: landscape) {
+            .modal { 
+                padding: 15px;
+                top: 50%;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            .grid { 
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important; 
+                max-height: 40vh !important;
+            }
+            .play-mode-modal {
+                padding: 20px;
+                max-width: 600px;
+            }
+            .play-mode-options {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+            .play-mode-btn {
+                width: 45%;
+                padding: 10px 15px;
+            }
+            #speed-selector {
+                bottom: 10px;
+                left: 10px;
+                flex-direction: row;
+                gap: 5px;
+            }
+            .speed-btn {
+                padding: 5px 10px;
+                font-size: 10px;
+            }
+            #timer-box { top: 10px; left: 10px; font-size: 30px; }
+            #top-hud { top: 10px; right: 10px; transform: scale(0.8); transform-origin: top right; }
+            #bottom-btns { bottom: 10px; right: 10px; transform: scale(0.8); transform-origin: bottom right; }
+        }
+
+        @media (max-width: 600px) {
+            .circle-btn { width: 50px; height: 50px; font-size: 24px; }
+            #player-name-input { width: 80% !important; }
+        }
     </style>
 </head>
 <body>
@@ -488,6 +534,12 @@
         <h3 style="text-align:center; color:#333; font-size: 18px; margin-bottom: 5px;">Jogadores na Sala</h3>
         <ul class="lobby-players" id="lobby-player-list"></ul>
         <div class="lobby-player-count" id="lobby-player-count">0/10 jogadores</div>
+        
+        <div style="margin: 15px 0; font-family: sans-serif; display: flex; align-items: center; justify-content: center; gap: 10px; background: #f0f0f0; padding: 10px; border-radius: 12px;">
+            <input type="checkbox" id="fill-bots-check" checked style="width: 20px; height: 20px; cursor: pointer;">
+            <label for="fill-bots-check" style="cursor: pointer; font-weight: bold; color: #555;">Preencher com Bots</label>
+        </div>
+
         <button class="btn-start-match" id="btn-start-match" onclick="requestStartGame()" disabled>INICIAR PARTIDA</button>
         <div class="room-error-msg" id="room-create-error"></div>
     </div>
@@ -903,6 +955,10 @@
         window.addEventListener('touchstart', (e) => {
             isDragging = true;
             lastMouseX = e.touches[0].clientX;
+            
+            // Atualiza posição do mouse para mira no touch
+            mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
         });
         window.addEventListener('touchend', () => isDragging = false);
         window.addEventListener('touchmove', (e) => {
@@ -910,6 +966,19 @@
                 const deltaX = e.touches[0].clientX - lastMouseX;
                 camTargetLon -= deltaX * 0.5;
                 lastMouseX = e.touches[0].clientX;
+            }
+
+            // Atualiza mira no touch
+            mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+
+            if(gameState === 'PLANNING' && player && player.alive) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersectPoint = new THREE.Vector3();
+                if(raycaster.ray.intersectPlane(groundPlane, intersectPoint)) {
+                    const dir = intersectPoint.sub(player.group.position);
+                    player.targetAngle = Math.atan2(dir.x, dir.z);
+                }
             }
         });
 
@@ -1752,8 +1821,8 @@
 
     // --- Iniciar partida (host) ---
     function requestStartGame() {
-        if (!mpIsHost) return;
-        sendMP({ type: 'START_GAME' });
+        const fillBots = document.getElementById('fill-bots-check').checked;
+        sendMP({ type: 'START_GAME', fillWithBots: fillBots });
     }
 
     // --- Renderizar lista de jogadores no lobby ---

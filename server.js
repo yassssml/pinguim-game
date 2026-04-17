@@ -384,15 +384,20 @@ wss.on('connection', (socket) => {
 
                 // Completa com bots
                 for (let i = room.players.length; i < totalSlots; i++) {
-                    playerPositions.push({
-                        id: 'bot_' + i,
-                        name: 'Bot',
-                        skinType: Math.random() > 0.6 ? 'sorvete' : 'normal',
-                        skinColor: Math.floor(Math.random() * 0xffffff),
-                        skinName: 'Bot',
-                        isBot: true,
-                        position: startPositions[i]
-                    });
+                // Completa com bots se solicitado
+                const fillWithBots = msg.fillWithBots !== false;
+                if (fillWithBots) {
+                    for (let i = room.players.length; i < totalSlots; i++) {
+                        playerPositions.push({
+                            id: 'bot_' + i,
+                            name: 'Bot',
+                            skinType: Math.random() > 0.6 ? 'sorvete' : 'normal',
+                            skinColor: Math.floor(Math.random() * 0xffffff),
+                            skinName: 'Bot',
+                            isBot: true,
+                            position: startPositions[i]
+                        });
+                    }
                 }
 
                 broadcastToRoom(currentRoom, {
