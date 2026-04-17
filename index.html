@@ -1000,6 +1000,17 @@
         });
 
         animate();
+
+        // Auto-join se tiver ?room=CODE na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomToJoin = urlParams.get('room');
+        if (roomToJoin) {
+            setTimeout(() => {
+                if (checkAuth()) {
+                    joinRoomByCode(roomToJoin);
+                }
+            }, 1000);
+        }
     }
 
     function onWindowResize() {
@@ -1493,7 +1504,7 @@
                 group: m.group, arrow: m.arrow, isPlayer: isP, alive: true,
                 angle: isP ? Math.PI : Math.random()*Math.PI*2,
                 targetAngle: isP ? Math.PI : Math.random()*Math.PI*2,
-                power: 0.25, velocity: new THREE.Vector3(), radius: 0.9
+                power: 0.25, velocity: new THREE.Vector3(0,0,0), radius: 0.9
             };
             penguins.push(pObj); scene.add(m.group); if(isP) player = pObj;
         }
@@ -1656,6 +1667,19 @@
 
             camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.1);
             camera.lookAt(player.group.position);
+        }
+
+        // --- LÓGICA MULTIPLAYER (Sincronização de ações) ---
+        if (mpMode && gameState === 'SLIDING' && player && !player._actionSent) {
+            player._actionSent = true;
+            sendMP({
+                type: 'PLAYER_ACTION',
+                angle: player.angle,
+                power: player.power
+            });
+        }
+        if (mpMode && gameState === 'PLANNING' && player) {
+            player._actionSent = false;
         }
     }
 
@@ -1927,10 +1951,11 @@
             const pObj = {
                 group: m.group, arrow: m.arrow, isPlayer: isMe, alive: true,
                 isBot: pd.isBot,
-                odId: pd.id,    // ID do jogador/bot original
-                angle: isMe ? Math.PI : Math.random() * Math.PI * 2,
-                targetAngle: isMe ? Math.PI : Math.random() * Math.PI * 2,
-                power: 0.25, velocity: new THREE.Vector3(), radius: 0.9
+                odId: pd.id,
+                angle: Math.atan2(-pd.position.x, -pd.position.z),
+                targetAngle: Math.atan2(-pd.position.x, -pd.position.z),
+                power: 0.25, velocity: new THREE.Vector3(0,0,0), radius: 0.9,
+                _actionSent: false
             };
             penguins.push(pObj);
             scene.add(m.group);
@@ -1941,25 +1966,6 @@
         timer = TURN_TIME;
         setPower(0.55);
     }
-
-    // --- Enviar ação ao servidor quando o timer acaba (multiplayer) ---
-    const _origUpdate = update;
-    update = function(dt) {
-        _origUpdate(dt);
-
-        // No modo multiplayer, quando o timer de planejamento acaba, envia ação
-        if (mpMode && gameState === 'SLIDING' && player && !player._actionSent) {
-            player._actionSent = true;
-            sendMP({
-                type: 'PLAYER_ACTION',
-                angle: player.angle,
-                power: player.power
-            });
-        }
-        if (mpMode && gameState === 'PLANNING') {
-            player._actionSent = false;
-        }
-    };
 
     // --- Aplicar ações recebidas do servidor ---
     function applyMultiplayerActions(actions) {
