@@ -981,8 +981,43 @@
         }
     }
 
-    function createPenguinMesh(pData) {
+    function createTextLabel(text) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const fontSize = 32;
+        ctx.font = `Bold ${fontSize}px 'Fredoka One', cursive, sans-serif`;
+        const textWidth = ctx.measureText(text).width;
+        
+        canvas.width = textWidth + 20;
+        canvas.height = fontSize + 20;
+        
+        // Fundo semitransparente
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.roundRect(0, 0, canvas.width, canvas.height, 10);
+        ctx.fill();
+        
+        // Texto
+        ctx.font = `Bold ${fontSize}px 'Fredoka One', cursive, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'white';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(canvas.width / 40, canvas.height / 40, 1);
+        return sprite;
+    }
+
+    function createPenguinMesh(pData, displayName = "Pinguim") {
         const group = new THREE.Group();
+        
+        // Adiciona o nome sobre o pinguim
+        const label = createTextLabel(displayName);
+        label.position.set(0, 3.2, 0); // Ajusta altura do nome
+        group.add(label);
+
         let bodyColor = pData.color;
         let bodyMat;
 
@@ -1382,7 +1417,7 @@
         for(let i=0; i<PENGUIN_COUNT; i++) {
             const isP = i === 0;
             let config = isP ? pConfig : { color: Math.random() * 0xffffff, type: Math.random() > 0.6 ? 'sorvete' : 'normal', name: 'Bot' };
-            const m = createPenguinMesh(config);
+            const m = createPenguinMesh(config, isP ? playerName : `Bot ${i}`);
             const dist = 12; const ang = (Math.PI*2/PENGUIN_COUNT)*i;
             m.group.position.set(Math.cos(ang)*dist, 0.5, Math.sin(ang)*dist);
             const pObj = {
@@ -1819,7 +1854,7 @@
             } else {
                 config = { color: pd.skinColor, type: pd.skinType || 'normal', name: pd.skinName || 'Bot' };
             }
-            const m = createPenguinMesh(config);
+            const m = createPenguinMesh(config, pd.playerName || (pd.isBot ? `Bot ${i}` : 'Jogador'));
             m.group.position.set(pd.position.x, 0.5, pd.position.z);
             const pObj = {
                 group: m.group, arrow: m.arrow, isPlayer: isMe, alive: true,
