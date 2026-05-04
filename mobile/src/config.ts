@@ -9,6 +9,6 @@
  *     Ex: https://penguin-knockout.onrender.com
  */
 
-const SERVER_URL = 'http://10.88.199.161:3000';
+const SERVER_URL = 'http://10.88.199.161:3001';
 
 export default SERVER_URL;

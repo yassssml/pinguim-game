@@ -14,7 +14,7 @@ const ws = require('ws');
 neonConfig.webSocketConstructor = ws;
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Cria o cliente SQL usando a connection string (se existir)
 let sql = null;
@@ -158,8 +158,8 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Senha incorreta' });
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             account: {
                 id: account.id,
                 username: account.username,
@@ -289,7 +289,7 @@ wss.on('connection', (socket) => {
                     ice: msg.ice || 0,
                     skinsCount: msg.skinsCount || 1
                 });
-                
+
                 // Se o jogador estiver em uma sala, atualiza o nome dele lá também!
                 if (currentRoom) {
                     const room = rooms.get(currentRoom);

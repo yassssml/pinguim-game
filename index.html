@@ -463,8 +463,14 @@
             </div>
             <div class="card" onclick="buyEgg('duck')">
                 <div style="font-size: 60px">🦆</div>
-                <strong>Ovo Pato</strong><br>
+                <strong>Ovo de Pato</strong><br>
                 <span style="color:#e91e63">1050 Gelo</span>
+            </div>
+            <!-- Skin Secreta Triple Fetus -->
+            <div class="card" style="border: 2px dashed red;" onclick="unlockTripleFetus()">
+                <div style="font-size: 60px">☣️</div>
+                <strong>???</strong><br>
+                <span style="color:red">RESTRITO</span>
             </div>
         </div>
     </div>
@@ -1147,7 +1153,20 @@
         const body = new THREE.Mesh(bodyGeo, bodyMat);
         body.position.y = 0.65;
         body.castShadow = true;
-        group.add(body);
+        // --- SKIN: TRIPLE FETUS (SECRET) ---
+        if (pData.type === 'triple_fetus') {
+            const head2 = body.clone();
+            head2.scale.set(0.6, 0.6, 0.6);
+            head2.position.set(0.6, 0.5, 0.2);
+            group.add(head2);
+
+            const head3 = body.clone();
+            head3.scale.set(0.6, 0.6, 0.6);
+            head3.position.set(-0.6, 0.5, 0.2);
+            group.add(head3);
+
+            body.material = new THREE.MeshStandardMaterial({ color: 0xffaaaa, emissive: 0xff0000, emissiveIntensity: 0.2 });
+        }
 
         // 2. Barriga Branca
         const bellyGeo = new THREE.BoxGeometry(0.9, 1.1, 0.15);
@@ -1298,13 +1317,14 @@
         {n: 'Morango', t: 'frutas'}, {n: 'Melancia', t: 'frutas'}, {n: 'Uva', t: 'frutas'},
         {n: 'Tricera', t: 'dino'}, {n: 'Stego', t: 'dino'}, {n: 'Raptor', t: 'dino'}, {n: 'T-Rex', t: 'dino'}, {n: 'Spino', t: 'dino'},
         {n: 'Gabriel', t: 'arcanjo'}, {n: 'Miguel', t: 'arcanjo'}, {n: 'Rafael', t: 'arcanjo'},
-        {n: 'Ducky', t: 'duck'}, {n: 'Shark', t: 'duck'}, {n: 'Soldier', t: 'duck'}, {n: 'Evil', t: 'duck'}, {n: 'Gangster', t: 'duck'}
+        {n: 'Ducky', t: 'duck'}, {n: 'Shark', t: 'duck'}, {n: 'Soldier', t: 'duck'}, {n: 'Evil', t: 'duck'}, {n: 'Gangster', t: 'duck'},
+        {n: 'Triple Fetus', t: 'triple_fetus'}
     ];
 
     function renderCollection() {
         const grid = document.getElementById('collection-grid');
         grid.innerHTML = '';
-        const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧' };
+        const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧', 'triple_fetus': '☣️' };
 
         ALL_PENGUINS.forEach(p => {
             const key = p.t + ':' + p.n;
@@ -1316,6 +1336,7 @@
             else if (['T-Rex', 'Evil', 'Miguel', 'Pistache'].includes(p.n)) { rText = 'ULTRA-RARO'; rColor = '#9c27b0'; }
             else if (['Raptor', 'Soldier', 'Gabriel', 'Uva'].includes(p.n) || (p.t === 'sorvete' && p.n === 'Morango')) { rText = 'RARO'; rColor = '#2196f3'; }
             else if (['Stego', 'Shark', 'Chocolate', 'Melancia'].includes(p.n)) { rText = 'INCOMUM'; rColor = '#4caf50'; }
+            else if (p.t === 'triple_fetus') { rText = '☢️ RESTRITO'; rColor = 'red'; }
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -1343,7 +1364,7 @@
         userData.inventory.forEach(p => {
             const card = document.createElement('div');
             card.className = `card ${userData.selectedId === p.id ? 'selected' : ''}`;
-            const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧' };
+            const emojis = { 'sorvete': '🍦', 'frutas': '🍎', 'dino': '🦖', 'arcanjo': '👼', 'duck': '🦆', 'pastel': '🥚', 'normal': '🐧', 'triple_fetus': '☣️' };
             
             // Sistema visual de Raridade Atualizado (5 Tiers) e Valor de Venda
             let rText = 'COMUM', rColor = '#888888';
@@ -1478,13 +1499,8 @@
     }
 
     function finishHatch() {
-        save(); document.getElementById('egg-overlay').style.display = 'none';
+        document.getElementById('egg-overlay').style.display = 'none';
         document.getElementById('reveal-name').style.opacity = 0; document.getElementById('claim-btn').style.display = 'none';
-    }
-
-    function resetMatch() {
-        // Limpa arena sem recarregar a página para manter dados
-        gameState = 'MENU';
         penguins.forEach(p => scene.remove(p.group));
         penguins = [];
         document.getElementById('main-menu').style.display = 'block';
@@ -1492,6 +1508,37 @@
         document.getElementById('timer-box').style.display = 'none';
         document.getElementById('speed-selector').style.display = 'none';
     }
+
+    // --- HABILIDADE SECRETA: TRIPLE FETUS ---
+    let keysPressed = {};
+    window.addEventListener('keydown', (e) => {
+        keysPressed[e.key] = true;
+        if (keysPressed['6'] && keysPressed['7']) {
+            if (userData.currentSkin === 'triple_fetus') {
+                document.body.innerHTML = `
+                    <div style="background:white; color:black; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:serif;">
+                        <h1 style="font-size:100px;">☢️</h1>
+                        <h2 style="font-size:50px;">BOMBA NUCLEAR ATIVADA</h2>
+                        <p>Triple Fetus destruiu a realidade.</p>
+                    </div>
+                `;
+                setTimeout(() => {
+                    window.close();
+                    window.location.href = "about:blank";
+                }, 1000);
+            }
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        keysPressed[e.key] = false;
+    });
+
+    window.adminGelo = function(amount) {
+        userData.ice += amount;
+        save();
+        updateUI();
+        console.log(`💰 ${amount} de gelo adicionado! Saldo: ${userData.ice}`);
+    };
 
     function playAgain() {
         closeModal('game-over-modal');
