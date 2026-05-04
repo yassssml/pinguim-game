@@ -444,27 +444,27 @@
             <div class="card" onclick="buyEgg('pastel')">
                 <div style="font-size: 60px">🥚</div>
                 <strong>Ovo Pastel</strong><br>
-                <span style="color:#0077ff">150 Gelo</span>
+                <span style="color:#1565c0">150 Gelo</span>
             </div>
             <div class="card" onclick="buyEgg('frutas')">
                 <div style="font-size: 60px">🍎</div>
                 <strong>Ovo Frutas</strong><br>
-                <span style="color:#0077ff">700 Gelo</span>
+                <span style="color:#4caf50">700 Gelo</span>
             </div>
             <div class="card" onclick="buyEgg('dino')">
                 <div style="font-size: 60px">🦖</div>
                 <strong>Ovo Dino</strong><br>
-                <span style="color:#0077ff">1850 Gelo</span>
+                <span style="color:#d84315">1850 Gelo</span>
             </div>
             <div class="card" onclick="buyEgg('arcanjo')">
                 <div style="font-size: 60px">👼</div>
                 <strong>Ovo Arcanjo</strong><br>
-                <span style="color:#0077ff">1000 Gelo</span>
+                <span style="color:#fbc02d">1000 Gelo</span>
             </div>
             <div class="card" onclick="buyEgg('duck')">
                 <div style="font-size: 60px">🦆</div>
                 <strong>Ovo Pato</strong><br>
-                <span style="color:#0077ff">1050 Gelo</span>
+                <span style="color:#e91e63">1050 Gelo</span>
             </div>
         </div>
     </div>
@@ -1029,11 +1029,7 @@
     }
 
     function createArena() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64; canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#e0f7ff';
-        const iceGeo = new THREE.CylinderGeometry(ARENA_SIZE/2, ARENA_SIZE/2, 2, 64);
+        const iceGeo = new THREE.BoxGeometry(ARENA_SIZE, 2, ARENA_SIZE);
         const iceMat = new THREE.MeshStandardMaterial({ 
             color: 0xccf2ff, 
             roughness: 0.05, 
@@ -1045,6 +1041,29 @@
         ice.position.y = -1.1;
         ice.receiveShadow = true;
         scene.add(ice);
+
+        // Camada de brilho/reflexo (Ray Tracing feel)
+        const iceTopGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
+        const iceTopMat = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            transmission: 0.5,
+            thickness: 0.5,
+            roughness: 0.1,
+            metalness: 0,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1,
+            reflectivity: 1.0
+        });
+        const iceTop = new THREE.Mesh(iceTopGeo, iceTopMat);
+        iceTop.rotation.x = -Math.PI/2;
+        iceTop.position.y = -0.09;
+        scene.add(iceTop);
+
+        const snowGeo = new THREE.BoxGeometry(ARENA_SIZE + 4, 5, ARENA_SIZE + 4);
+        const snowMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const snow = new THREE.Mesh(snowGeo, snowMat);
+        snow.position.y = -4.5;
+        scene.add(snow);
 
         const water = new THREE.Mesh(
             new THREE.PlaneGeometry(2000, 2000), 

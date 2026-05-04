@@ -122,12 +122,14 @@ export default function GameScreen() {
             <Text style={styles.emoji}>❌</Text>
             <Text style={styles.errorTitle}>Servidor Offline</Text>
             <Text style={styles.errorBody}>
-              Inicie o servidor com:{'\n'}
-              <Text style={styles.code}>node server.js</Text>
+              O celular não conseguiu conectar ao seu computador.{'\n\n'}
+              <Text style={styles.bold}>Como resolver:{'\n'}</Text>
+              1. Verifique se o <Text style={styles.code}>jogar-pc.bat</Text> está aberto.{'\n'}
+              2. Certifique-se que o Celular e o PC estão no <Text style={styles.bold}>MESMO Wi-Fi</Text>.{'\n'}
+              3. Desative o <Text style={styles.bold}>Firewall do Windows</Text> ou permita a porta 3000.{'\n\n'}
+              {errorMsg ? `Detalhe técnico: ${errorMsg}` : ''}
               {'\n\n'}
-              {errorMsg ? `Detalhe: ${errorMsg}` : ''}
-              {'\n\n'}
-              URL configurada:{'\n'}
+              IP Tentado:{'\n'}
               <Text style={styles.code}>{SERVER_URL}</Text>
             </Text>
             <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
@@ -225,5 +227,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 16,
     letterSpacing: 2,
+  },
+  bold: {
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
 });
