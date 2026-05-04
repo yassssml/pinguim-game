@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Penguin Knockout",
+    "slug": "penguin-knockout",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "scheme": "pinguim",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#a2d2ff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pinguimgame.knockout",
+      "requireFullScreen": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#a2d2ff"
+      },
+      "package": "com.pinguimgame.knockout"
+    },
+    "web": {
+      "output": "single"
+    },
+    "plugins": [
+      "expo-screen-orientation"
+    ]
+  }
+}
