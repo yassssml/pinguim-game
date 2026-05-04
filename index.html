@@ -901,22 +901,29 @@
         camera.position.set(40, 40, 40);
         camera.lookAt(0, 0, 0);
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
         document.body.appendChild(renderer.domElement);
 
-        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambient);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-        sun.position.set(30, 50, 20);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(40, 60, 20);
         sun.castShadow = true;
-        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
-        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
-        sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+        sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+        sun.shadow.camera.top = 50; sun.shadow.camera.bottom = -50;
+        sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+        sun.shadow.radius = 4; // Blur nas sombras para efeito soft
         scene.add(sun);
+
+        // Luz de preenchimento colorida (Sky Blue)
+        const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.5);
+        scene.add(hemiLight);
 
         createArena();
         createDecorations();
@@ -1026,18 +1033,16 @@
         canvas.width = 64; canvas.height = 64;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#e0f7ff';
-        ctx.fillRect(0,0,64,64);
-        ctx.fillStyle = '#c5ebf9';
-        ctx.beginPath(); ctx.arc(32,32,15,0,Math.PI*2); ctx.fill();
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(ARENA_SIZE/2, ARENA_SIZE/2);
-
-        const iceGeo = new THREE.BoxGeometry(ARENA_SIZE, 3, ARENA_SIZE);
-        const iceMat = new THREE.MeshPhongMaterial({ map: texture, shininess: 80 });
+        const iceGeo = new THREE.CylinderGeometry(ARENA_SIZE/2, ARENA_SIZE/2, 2, 64);
+        const iceMat = new THREE.MeshStandardMaterial({ 
+            color: 0xccf2ff, 
+            roughness: 0.05, 
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.95
+        });
         const ice = new THREE.Mesh(iceGeo, iceMat);
-        ice.position.y = -1.5;
+        ice.position.y = -1.1;
         ice.receiveShadow = true;
         scene.add(ice);
 
